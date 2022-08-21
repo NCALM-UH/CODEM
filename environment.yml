@@ -1,0 +1,11 @@
+name: modem
+channels:
+  - conda-forge
+dependencies:
+  - python-pdal
+  - opencv
+  - rasterio
+  - trimesh
+  - matplotlib
+  - scikit-image
+  - enlighten
