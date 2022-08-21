@@ -1,0 +1,15 @@
+.vscode/
+__pycache__/
+*.egg-info/
+build/
+dist/
+demo/MODEM_*
+demo/registration_*
+docker/
+
+arcgis/*
+!arcgis/*.pyt
+!arcgis/*.tbx
+!arcgis/*.pyt.xml
+!arcgis/*.yml
+!arcgis/*pdf
