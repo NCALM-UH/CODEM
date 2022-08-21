@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata xml:lang="en">
+	<Esri>
+		<CreaDate>20210805</CreaDate>
+		<CreaTime>16420000</CreaTime>
+		<ArcGISFormat>1.0</ArcGISFormat>
+		<SyncOnce>TRUE</SyncOnce>
+		<ModDate>20210823</ModDate>
+		<ModTime>210223</ModTime>
+		<DataProperties>
+			<lineage>
+				<Process ToolSource="c:\program files\arcgis\pro\Resources\ArcToolbox\Toolboxes\Data Management Tools.tbx\Rename" Date="20210805" Time="170304">Rename "C:\dev\modem\arcgis\Demonstration Tools.pyt" "C:\dev\modem\arcgis\Demo Tools.pyt" #</Process>
+				<Process ToolSource="c:\program files\arcgis\pro\Resources\ArcToolbox\Toolboxes\Data Management Tools.tbx\Rename" Date="20210809" Time="074720">Rename "E:\dev\modem\arcgis\Demo Tools.pyt" "E:\dev\modem\arcgis\3D Data Co-Registration.pyt" #</Process>
+			</lineage>
+		</DataProperties>
+	</Esri>
+	<toolbox name="3D Data Co-Registration" alias="3d_registration">
+		<arcToolboxHelpPath>c:\users\pjhartze\appdata\local\programs\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+		<toolsets/>
+	</toolbox>
+	<dataIdInfo>
+		<idCitation>
+			<resTitle>3D Data Co-Registration</resTitle>
+		</idCitation>
+	</dataIdInfo>
+	<distInfo>
+		<distributor>
+			<distorFormat>
+				<formatName>ArcToolbox Toolbox</formatName>
+			</distorFormat>
+		</distributor>
+	</distInfo>
+</metadata>
