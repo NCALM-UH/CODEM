@@ -132,7 +132,7 @@ class DsmRegistration:
         * https://docs.opencv.org/master/dc/dc3/tutorial_py_matcher.html
         * https://luckytaylor.top/modules/flann/doc/flann_fast_approximate_nearest_neighbor_search.html
         """
-        if self.aoi_desc.shape[0] > 2 ^ 17 or self.fnd_desc.shape[0] > 2 ^ 17:
+        if self.aoi_desc.shape[0] > 2 ** 17 or self.fnd_desc.shape[0] > 2 ** 17:
             FLANN_INDEX_LSH = 6
             index_params = dict(
                 algorithm=FLANN_INDEX_LSH,
@@ -339,7 +339,7 @@ class DsmRegistration:
         self.rmse_xyz = np.sqrt(
             np.sum((fnd_xyz - aoi_xyz_transformed) ** 2, axis=0) / fnd_xyz.shape[0]
         )
-        self.rmse_3d = np.sqrt(np.sum(self.rmse_xyz ** 2))
+        self.rmse_3d = np.sqrt(np.sum(self.rmse_xyz**2))
 
     def _output(self):
         """

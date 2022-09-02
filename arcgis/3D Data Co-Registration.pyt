@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
-
 import os
 import json
 import arcpy
-import docker
-
+import subprocess
+import pdal
+import modem
+import dataclasses
 
 class Toolbox(object):
     def __init__(self):
         """Define the toolbox (the name of the toolbox is the name of the
         .pyt file)."""
-        self.label = "3D Registration"
+        self.label = "3D Data Co-Registration"
         self.alias = "3d_registration"
 
         # List of tool classes associated with this toolbox
@@ -250,48 +250,25 @@ class Register_DEM2DEM(object):
         fnd_dir, fnd_file = os.path.split(fnd_source)
         aoi_dir, aoi_file = os.path.split(aoi_source)
 
-        # Binding multiple volumes to the same directory is not good
-        if fnd_dir == aoi_dir:
-            volume = "/data"
-
-            cmd = "modem"
-            cmd += f' "{volume}/{fnd_file}"'
-            cmd += f' "{volume}/{aoi_file}"'
-            for parameter in parameters[2:]:
-                cmd += f" --{parameter.name} {parameter.valueAsText}"
-
-            volumes = {fnd_dir: {"bind": volume, "mode": "rw"}}
-        else:
-            fnd_volume = "/data/fnd"
-            aoi_volume = "/data/aoi"
-
-            cmd = "modem"
-            cmd += f' "{fnd_volume}/{fnd_file}"'
-            cmd += f' "{aoi_volume}/{aoi_file}"'
-            for parameter in parameters[2:]:
-                cmd += f" --{parameter.name} {parameter.valueAsText}"
-
-            volumes={
-                fnd_dir: {"bind": fnd_volume, "mode": "ro"},
-                aoi_dir: {"bind": aoi_volume, "mode": "rw"}
-            }
-
         arcpy.SetProgressor("step", "Registering AOI to Foundation", 0, 5)
-        client = docker.from_env()
-        container = client.containers.run(
-            # "docker-registry.rsgiscx.net:443/rsgis/modem:0.2",
-            "modem:0.21",
-            command=["bash", "-c", cmd],
-            volumes=volumes,
-            detach=True,
-            remove=True,
-        )
 
-        # Hack the Docker stdout and stderr for progress bar and messaging
-        regfile = None
-        output = container.attach(stdout=True, stream=True, logs=True)
+        cmd = ["modem"]
+        cmd.append(os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/"))
+        cmd.append(os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/"))
+        for parameter in parameters[2:]:
+            cmd.append(f"--{parameter.name}")
+            cmd.append(f"{parameter.valueAsText}")
+
+        try:
+            completed_process = subprocess.run(cmd, text=True, capture_output=True)
+        except Exception:
+            arcpy.AddError(f"{cmd.join(' ')} failed")
+            raise
+
+        output = completed_process.stdout.split("\n")
+        reg_file = None
         for line in output:
-            temp = line.decode(errors="ignore")
+            temp = line
             # Check for error
             if ("Traceback" in temp) or ("AssertionError" in temp):
                 arcpy.AddError(temp)
@@ -315,13 +292,13 @@ class Register_DEM2DEM(object):
                     # Messaging
                     if ("- INFO -" in temp_line):
                         # Change paths to local
-                        if ("/data/fnd" in temp_line):
-                            idx = temp_line.find("/data/fnd")
+                        if (f"{fnd_dir}/fnd" in temp_line):
+                            idx = temp_line.find(f"{fnd_dir}/fnd")
                             temp_path = os.path.join(fnd_dir, temp_line[idx+10:])
                             temp_path = os.path.normpath(temp_path)
                             temp_line = temp_line[0:idx] + temp_path
-                        elif ("/data/aoi" in temp_line):
-                            idx = temp_line.find("/data/aoi")
+                        elif (f"{aoi_dir}/aoi" in temp_line):
+                            idx = temp_line.find(f"{aoi_dir}/aoi")
                             temp_path = os.path.join(aoi_dir, temp_line[idx+10:])
                             temp_path = os.path.normpath(temp_path)
                             temp_line = temp_line[0:idx] + temp_path
@@ -342,17 +319,12 @@ class Register_DEM2DEM(object):
 
         if reg_file is not None:
             _, ext = os.path.splitext(reg_file)
-            if (ext == ".tif"):
-                try:
-                    aprx = arcpy.mp.ArcGISProject('CURRENT')
-                    activeMap = aprx.activeMap
-                    arcpy.env.addOutputsToMap = True
-                    if activeMap is not None:
-                        activeMap.addDataFromPath(reg_file)
-                except:
-                    # arcpy.AddWarning("Unable to create registered DEM layer in ArcGIS.")
-                    pass # We'll let this silently fail for now
-
+            if ext == ".tif":
+                aprx = arcpy.mp.ArcGISProject('CURRENT')
+                activeMap = aprx.activeMap
+                arcpy.env.addOutputsToMap = True
+                if activeMap is not None:
+                    activeMap.addDataFromPath(reg_file)
         return
 
 class Register_MultiType(object):
@@ -503,7 +475,8 @@ class Register_MultiType(object):
         aoi.filter.list = ['las', 'laz', 'bpf', 'ply', 'obj', 'tif', 'tiff']
 
         # Minimum pipeline resolution
-        min.value = 2.0
+        # min.value = 2.0
+        min.value = 1.0
         min.filter.type = "Range"
         min.filter.list = [0.01, 100]
 
@@ -583,86 +556,48 @@ class Register_MultiType(object):
         fnd_dir, fnd_file = os.path.split(parameters[0].valueAsText)
         aoi_dir, aoi_file = os.path.split(parameters[1].valueAsText)
 
-        # Binding multiple volumes to the same directory is not good
-        if fnd_dir == aoi_dir:
-            volume = "/data"
-
-            cmd = "modem"
-            cmd += f' "{volume}/{fnd_file}"'
-            cmd += f' "{volume}/{aoi_file}"'
-            for parameter in parameters[2:]:
-                cmd += f" --{parameter.name} {parameter.valueAsText}"
-
-            volumes = {fnd_dir: {"bind": volume, "mode": "rw"}}
-        else:
-            fnd_volume = "/data/fnd"
-            aoi_volume = "/data/aoi"
-
-            cmd = "modem"
-            cmd += f' "{fnd_volume}/{fnd_file}"'
-            cmd += f' "{aoi_volume}/{aoi_file}"'
-            for parameter in parameters[2:]:
-                cmd += f" --{parameter.name} {parameter.valueAsText}"
-
-            volumes={
-                fnd_dir: {"bind": fnd_volume, "mode": "ro"},
-                aoi_dir: {"bind": aoi_volume, "mode": "rw"}
-            }
+        fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/")
+        aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/")
 
         arcpy.SetProgressor("step", "Registering AOI to Foundation", 0, 5)
-        client = docker.from_env()
-        container = client.containers.run(
-            "modem:0.21",
-            command=["bash", "-c", cmd],
-            volumes=volumes,
-            detach=True,
-            remove=True,
+
+        kwargs = {parameter.name.upper(): parameter.value for parameter in parameters[2:]}
+        modem_run_config = modem.ModemRunConfig(
+            fnd_full_path,
+            aoi_full_path,
+            **kwargs
         )
+        config = dataclasses.asdict(modem_run_config)
 
-        # Hack the Docker stdout and stderr for progress bar and messaging
-        output = container.attach(stdout=True, stream=True, logs=True)
-        for line in output:
-            temp = line.decode(errors="ignore")
-            # Check for error
-            if ("Traceback" in temp) or ("AssertionError" in temp):
-                arcpy.AddError(temp)
-            else:
-                # Handle multiple lines
-                for temp_line in temp.splitlines():
-                    # Progress bar
-                    if ("PREPROCESSING DATA" in temp_line):
-                        arcpy.SetProgressorLabel("Step 1/4: Prepping AOI and Foundation Data")
-                        arcpy.SetProgressorPosition()
-                    if ("BEGINNING COARSE REGISTRATION" in temp_line):
-                        arcpy.SetProgressorLabel("Step 2/4: Solving Coarse Registration")
-                        arcpy.SetProgressorPosition()
-                    if ("BEGINNING FINE REGISTRATION" in temp_line):
-                        arcpy.SetProgressorLabel("Step 3/4: Solving Fine Registration")
-                        arcpy.SetProgressorPosition()
-                    if ("APPLYING REGISTRATION" in temp_line):
-                        arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
-                        arcpy.SetProgressorPosition()
+        arcpy.SetProgressorLabel("Step 1/4: Prepping AOI and Foundation Data")
+        arcpy.SetProgressorPosition()
+        fnd_obj, aoi_obj = modem.preprocess(config)
 
-                    # Messaging
-                    if ("- INFO -" in temp_line):
-                        # Change paths to local
-                        if ("/data/fnd" in temp_line):
-                            idx = temp_line.find("/data/fnd")
-                            temp_path = os.path.join(fnd_dir, temp_line[idx+10:])
-                            temp_path = os.path.normpath(temp_path)
-                            temp_line = temp_line[0:idx] + temp_path
-                        elif ("/data/aoi" in temp_line):
-                            idx = temp_line.find("/data/aoi")
-                            temp_path = os.path.join(aoi_dir, temp_line[idx+10:])
-                            temp_path = os.path.normpath(temp_path)
-                            temp_line = temp_line[0:idx] + temp_path
-                        elif ("/data" in temp_line):
-                            idx = temp_line.find("/data")
-                            temp_path = os.path.join(fnd_dir, temp_line[idx+6:])
-                            temp_path = os.path.normpath(temp_path)
-                            temp_line = temp_line[0:idx] + temp_path
-                        arcpy.AddMessage(temp_line)
-                    if ("- WARNING -" in temp_line):
-                        arcpy.AddWarning(temp_line)
+        fnd_obj.prep()
+        aoi_obj.prep()
 
-        return
+        arcpy.SetProgressorLabel("Step 2/4: Solving Coarse Registration")
+        arcpy.SetProgressorPosition()
+        dsm_reg = modem.coarse_registration(fnd_obj, aoi_obj, config)
+
+        arcpy.SetProgressorLabel("Step 3/4: Solving Fine Registration")
+        arcpy.SetProgressorPosition()
+        icp_reg = modem.fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
+
+
+        arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
+        arcpy.SetProgressorPosition()
+        reg_file = modem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format='las')
+
+        if not os.path.exists(reg_file):
+            arcpy.AddError("Registration file not generated")
+            return None
+        aprx = arcpy.mp.ArcGISProject('CURRENT')
+        activeMap = aprx.activeMap
+        arcpy.env.addOutputsToMap = True
+        if activeMap is not None:
+            activeMap.addDataFromPath(reg_file)
+            arcpy.AddMessage("ActiveMap added las file")
+        else:
+            arcpy.AddWarning("activeMap is None")
+        return None

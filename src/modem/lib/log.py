@@ -37,7 +37,9 @@ class Log:
                 "%(asctime)s - %(levelname)s - %(message)s", "%H:%M:%S"
             )
 
-        file_handler = logging.FileHandler(os.path.join(config["OUTPUT_DIR"], "log.txt"))
+        file_handler = logging.FileHandler(
+            os.path.join(config["OUTPUT_DIR"], "log.txt")
+        )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(log_format)
         self.logger.addHandler(file_handler)

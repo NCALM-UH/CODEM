@@ -19,7 +19,7 @@ import rasterio
 import trimesh
 import numpy as np
 import modem.lib.resources as r
-from typing import Tuple
+from typing import Tuple, Dict, Optional, Any
 from numpy.lib import recfunctions as rfn
 from matplotlib.tri import Triangulation, LinearTriInterpolator
 
@@ -42,6 +42,8 @@ class ApplyRegistration:
         Origins of moving point used in final ICP iteration
     config: dict
         Dictionary of configuration options
+    output_format: Optional[str]
+        Provide file extension to be used for the output format
 
     Methods
     -------
@@ -60,7 +62,8 @@ class ApplyRegistration:
         registration_parameters: np.array,
         residual_vectors: np.array,
         residual_origins: np.array,
-        config: dict,
+        config: Dict[str, Any],
+        output_format: Optional[str]
     ):
         self.logger = logging.getLogger(__name__)
         self.fnd_crs = fnd_obj.crs
@@ -76,8 +79,11 @@ class ApplyRegistration:
         self.residual_origins = residual_origins
         self.config = config
 
+
         in_name = os.path.basename(self.aoi_file)
         root, ext = os.path.splitext(in_name)
+        if output_format is not None:
+            ext = f".{output_format}"
         out_name = root + "_registered" + ext
         self.out_name = os.path.join(self.config["OUTPUT_DIR"], out_name)
 
@@ -172,11 +178,10 @@ class ApplyRegistration:
                 "resolution": self.aoi_resolution,
                 "output_type": "idw",
                 "nodata": self.aoi_nodata,
-                "filename": output_path
-            }
+                "filename": output_path,
+            },
         ]
         p = pdal.Pipeline(json.dumps(pipe))
-        p.validate()
         p.execute()
 
         self.logger.info(
@@ -321,7 +326,6 @@ class ApplyRegistration:
             self.out_name,
         ]
         p = pdal.Pipeline(json.dumps(pipe))
-        p.validate()
         p.execute()
         self.logger.info(
             f"Registration has been applied to AOI-PCLOUD and saved to: {self.out_name}"
@@ -333,7 +337,6 @@ class ApplyRegistration:
                 self.out_name,
             ]
             p = pdal.Pipeline(json.dumps(pipe))
-            p.validate()
             p.execute()
             arrays = p.arrays
             array = arrays[0]
@@ -375,12 +378,11 @@ class ApplyRegistration:
                 }
             ]
             p = pdal.Pipeline(
-                json=json.dumps(pipe),
+                json.dumps(pipe),
                 arrays=[
                     original_and_res,
                 ],
             )
-            p.validate()
             p.execute()
 
             self.logger.info(
@@ -421,8 +423,8 @@ class ApplyRegistration:
         x_res = fnd_res_vectors[:, 0]
         y_res = fnd_res_vectors[:, 1]
         z_res = fnd_res_vectors[:, 2]
-        horiz_res = np.sqrt(x_res ** 2 + y_res ** 2)
-        threeD_res = np.sqrt(np.sum(fnd_res_vectors ** 2, axis=1))
+        horiz_res = np.sqrt(x_res**2 + y_res**2)
+        threeD_res = np.sqrt(np.sum(fnd_res_vectors**2, axis=1))
 
         # Nearest neighbor is faster, but a linear interpolation looks better
         # Replace any NaN values produced by the interpolator with an obviously

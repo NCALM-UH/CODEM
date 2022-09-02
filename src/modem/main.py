@@ -17,11 +17,92 @@ import argparse
 import pathlib
 import enlighten
 import logging
+import dataclasses
+import typing
 from modem.lib.log import Log
 from modem.preprocessing.preprocess import instantiate
 from modem.registration import DsmRegistration as D
 from modem.registration import IcpRegistration as I
 from modem.registration import ApplyRegistration as A
+
+
+@dataclasses.dataclass
+class ModemRunConfig:
+    FND_FILE: str
+    AOI_FILE: str
+    MIN_RESOLUTION: float = 1.0
+    DSM_AKAZE_THRESHOLD: float = 0.0001
+    DSM_LOWES_RATIO: float = 0.9
+    DSM_RANSAC_MAX_ITER: int = 10000
+    DSM_RANSAC_THRESHOLD: float = 10.
+    DSM_SOLVE_SCALE: bool = True
+    DSM_STRONG_FILTER: float = 10.
+    DSM_WEAK_FILTER: float = 1.
+    ICP_ANGLE_THRESHOLD: float = 0.001
+    ICP_DISTANCE_THRESHOLD: float = 0.001
+    ICP_MAX_ITER: int = 100
+    ICP_RMSE_THRESHOLD: float = 0.0001
+    ICP_ROBUST: bool = True
+    ICP_SOLVE_SCALE: bool = True
+    VERBOSE: bool = False
+    ICP_SAVE_RESIDUALS: bool = False
+    OUTPUT_DIR: str = dataclasses.field(init=False)
+
+    def __post_init__(self):
+        # set output directory
+        current_time = time.localtime(time.time())
+        timestamp = "%d-%02d-%02d_%02d-%02d-%02d" % (
+            current_time.tm_year,
+            current_time.tm_mon,
+            current_time.tm_mday,
+            current_time.tm_hour,
+            current_time.tm_min,
+            current_time.tm_sec,
+        )
+        output_dir = os.path.join(os.path.dirname(self.AOI_FILE), f"registration_{timestamp}")
+        os.mkdir(output_dir)
+        self.OUTPUT_DIR  = os.path.abspath(output_dir)
+
+        # validate attributes
+        if not os.path.exists(self.FND_FILE):
+            raise FileNotFoundError(f"Foundation file {self.FND_FILE} not found.")
+        if not os.path.exists(self.AOI_FILE):
+            raise FileNotFoundError(f"AOI file {self.AOI_FILE} not found.")
+        if self.MIN_RESOLUTION <= 0:
+            raise ValueError("Minimum pipeline resolution must be a greater than 0.")
+        if self.DSM_AKAZE_THRESHOLD <= 0:
+            raise ValueError("Minmum AKAZE threshold must be greater than 0.")
+        if self.DSM_LOWES_RATIO < 0.01 or self.DSM_LOWES_RATIO >= 1.0:
+            raise ValueError("Lowes ratio must be between 0.01 and 1.0.")
+        if self.DSM_RANSAC_MAX_ITER < 1:
+            raise ValueError("Maximum number of RANSAC iterations must be a positive integer.")
+        if self.DSM_RANSAC_THRESHOLD <= 0:
+            raise ValueError("RANSAC threshold must be a positive number.")
+        if self.DSM_STRONG_FILTER <= 0:
+            raise ValueError("DSM strong filter size must be greater than 0.")
+        if self.DSM_WEAK_FILTER <= 0:
+            raise ValueError("DSM weak filter size must be greater than 0.")
+        if self.ICP_ANGLE_THRESHOLD <= 0:
+            raise ValueError("ICP minimum angle convergence threshold must be greater than 0.")
+        if self.ICP_DISTANCE_THRESHOLD <= 0:
+            raise ValueError("ICP minimum distance convergence threshold must be greater than 0.")
+        if self.ICP_MAX_ITER < 1:
+            raise ValueError("Maximum number of ICP iterations must be a positive integer.")
+        if self.ICP_RMSE_THRESHOLD <= 0:
+            raise ValueError("ICP minimum change in RMSE convergence threshold must be greater than 0.")
+
+
+        # dump config
+        config_path = os.path.join(self.OUTPUT_DIR, "config.yml")
+        with open(config_path, "w") as f:
+            yaml.safe_dump(
+                dataclasses.asdict(self),
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                explicit_start=True,
+            )
+        return None
 
 
 def str2bool(v):
@@ -34,12 +115,12 @@ def get_args():
     )
     ap.add_argument(
         "foundation_file",
-        type=pathlib.Path,
+        type=str,
         help="path to the foundation file",
     )
     ap.add_argument(
         "aoi_file",
-        type=pathlib.Path,
+        type=str,
         help="path to the area of interest file",
     )
     ap.add_argument(
@@ -144,124 +225,32 @@ def get_args():
         "--verbose", "-v", type=str2bool, default=False, help="turn on verbose logging"
     )
     args = ap.parse_args()
-
     return args
 
-
 def create_config(args):
-    config = {}
-    config["FND_FILE"] = str(args.foundation_file)
-    config["AOI_FILE"] = str(args.aoi_file)
-    config["MIN_RESOLUTION"] = float(args.min_resolution)
-    config["DSM_AKAZE_THRESHOLD"] = float(args.dsm_akaze_threshold)
-    config["DSM_LOWES_RATIO"] = float(args.dsm_lowes_ratio)
-    config["DSM_RANSAC_MAX_ITER"] = int(args.dsm_ransac_max_iter)
-    config["DSM_RANSAC_THRESHOLD"] = float(args.dsm_ransac_threshold)
-    config["DSM_SOLVE_SCALE"] = args.dsm_solve_scale
-    config["DSM_STRONG_FILTER_SIZE"] = float(args.dsm_strong_filter)
-    config["DSM_WEAK_FILTER_SIZE"] = float(args.dsm_weak_filter)
-    config["ICP_ANGLE_THRESHOLD"] = float(args.icp_angle_threshold)
-    config["ICP_DISTANCE_THRESHOLD"] = float(args.icp_distance_threshold)
-    config["ICP_MAX_ITER"] = int(args.icp_max_iter)
-    config["ICP_RMSE_THRESHOLD"] = float(args.icp_rmse_threshold)
-    config["ICP_ROBUST"] = args.icp_robust
-    config["ICP_SOLVE_SCALE"] = args.icp_solve_scale
-    config["VERBOSE"] = args.verbose
-    config["ICP_SAVE_RESIDUALS"] = False
-
-    current_time = time.localtime(time.time())
-    timestamp = "%d-%02d-%02d_%02d-%02d-%02d" % (
-        current_time.tm_year,
-        current_time.tm_mon,
-        current_time.tm_mday,
-        current_time.tm_hour,
-        current_time.tm_min,
-        current_time.tm_sec,
+    config = ModemRunConfig(
+        os.fsdecode(os.path.abspath(args.foundation_file)),
+        os.fsdecode(os.path.abspath(args.aoi_file)),
+        MIN_RESOLUTION = float(args.min_resolution),
+        DSM_AKAZE_THRESHOLD = float(args.dsm_akaze_threshold),
+        DSM_LOWES_RATIO = float(args.dsm_lowes_ratio),
+        DSM_RANSAC_MAX_ITER = int(args.dsm_ransac_max_iter),
+        DSM_RANSAC_THRESHOLD = float(args.dsm_ransac_threshold),
+        DSM_SOLVE_SCALE = args.dsm_solve_scale,
+        DSM_STRONG_FILTER = float(args.dsm_strong_filter),
+        DSM_WEAK_FILTER = float(args.dsm_weak_filter),
+        ICP_ANGLE_THRESHOLD = float(args.icp_angle_threshold),
+        ICP_DISTANCE_THRESHOLD = float(args.icp_distance_threshold),
+        ICP_MAX_ITER = int(args.icp_max_iter),
+        ICP_RMSE_THRESHOLD = float(args.icp_rmse_threshold),
+        ICP_ROBUST = args.icp_robust,
+        ICP_SOLVE_SCALE = args.icp_solve_scale,
+        VERBOSE = args.verbose,
+        ICP_SAVE_RESIDUALS = False,
     )
-    output_dir = os.path.join(os.path.dirname(args.aoi_file), "registration_" + timestamp)
-    os.mkdir(output_dir)
-    config["OUTPUT_DIR"] = os.path.abspath(output_dir)
+    return dataclasses.asdict(config)
 
-    config_path = os.path.join(config["OUTPUT_DIR"], "config.yml")
-    with open(config_path, "w") as f:
-        yaml.safe_dump(
-            config,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            explicit_start=True,
-        )
-
-    return config
-
-
-def validate_config(config):
-    assert os.path.exists(config["FND_FILE"]), "Invalid path to foundation data file"
-    assert os.path.exists(config["AOI_FILE"]), "Invalid path to area of interest file"
-    assert (
-        isinstance(config["MIN_RESOLUTION"], float) and config["MIN_RESOLUTION"] > 0
-    ), "Minimum pipeline resolution must be greater than 0"
-    assert (
-        isinstance(config["DSM_AKAZE_THRESHOLD"], float)
-        and config["DSM_AKAZE_THRESHOLD"] > 0
-    ), "AKAZE threshold must be greater than 0"
-    assert (
-        isinstance(config["DSM_LOWES_RATIO"], float)
-        and config["DSM_LOWES_RATIO"] >= 0.01
-        and config["DSM_LOWES_RATIO"] <= 1.0
-    ), "Lowes ratio must be between 0.01 and 1.0"
-    assert (
-        isinstance(config["DSM_RANSAC_MAX_ITER"], int)
-        and config["DSM_RANSAC_MAX_ITER"] > 0
-    ), "Maximum number of RANSAC interations must be a positive integer"
-    assert (
-        isinstance(config["DSM_RANSAC_THRESHOLD"], float)
-        and config["DSM_RANSAC_THRESHOLD"] > 0
-    ), "RANSAC threshold must be a positive number"
-    assert isinstance(
-        config["DSM_SOLVE_SCALE"], bool
-    ), "Flag for solving scale in DSM feature registration must be boolean"
-    assert (
-        isinstance(config["DSM_STRONG_FILTER_SIZE"], float)
-        and config["DSM_STRONG_FILTER_SIZE"] > 0
-    ), "DSM strong filter size must be greater than 0"
-    assert (
-        isinstance(config["DSM_WEAK_FILTER_SIZE"], float)
-        and config["DSM_WEAK_FILTER_SIZE"] > 0
-    ), "DSM weak filter size must be greater than 0"
-    assert (
-        isinstance(config["ICP_ANGLE_THRESHOLD"], float)
-        and config["ICP_ANGLE_THRESHOLD"] > 0
-    ), "ICP minimum angle convergence threshold must be greater than 0"
-    assert (
-        isinstance(config["ICP_DISTANCE_THRESHOLD"], float)
-        and config["ICP_DISTANCE_THRESHOLD"] > 0
-    ), "ICP minimum distance convergence threshold must be greater than 0"
-    assert (
-        isinstance(config["ICP_MAX_ITER"], int) and config["ICP_MAX_ITER"] > 0
-    ), "Maximum number of ICP interations must be a positive integer"
-    assert (
-        isinstance(config["ICP_RMSE_THRESHOLD"], float)
-        and config["ICP_RMSE_THRESHOLD"] > 0
-    ), "ICP minimum change in RMSE convergence threshold must be greater than 0"
-    assert isinstance(
-        config["ICP_ROBUST"], bool
-    ), "Flag for attempting to make ICP robust to outliers must be boolean"
-    assert isinstance(
-        config["ICP_SOLVE_SCALE"], bool
-    ), "Flag for solving scale in ICP registration must be boolean"
-    assert isinstance(
-        config["VERBOSE"], bool
-    ), "Flag for verbose output must be boolean"
-    assert isinstance(
-        config["ICP_SAVE_RESIDUALS"], bool
-    ), "Flag for exporting ICP residuals must be boolean"
-    assert os.path.exists(
-        config["OUTPUT_DIR"]
-    ), "An invalid path for algorithm output was created"
-
-
-def run(config):
+def run_console(config):
     """
     Preprocesses and registers the provided data
 
@@ -290,6 +279,7 @@ def run(config):
     run_bar.refresh()
     status.refresh()
 
+    # characters are problematic on a windows console
     print("╔════════════════════════════════════╗")
     print("║               MODEM                ║")
     print("╚════════════════════════════════════╝")
@@ -299,22 +289,13 @@ def run(config):
     print("╚════════════════════════════════════╝")
     print()
     print("══════════════PARAMETERS══════════════")
-    keys = list(config.keys())
-    for key in keys:
+    for key in config:
         logger.info(f"{key} = {config[key]}")
     run_bar.update(1, force=True)
 
     print("══════════PREPROCESSING DATA══════════")
     status.update(stage="Preprocessing Inputs", force=True)
-    fnd_obj = instantiate(config, fnd=True)
-    aoi_obj = instantiate(config, fnd=False)
-    resolution = max(
-        fnd_obj.native_resolution,
-        aoi_obj.native_resolution,
-        config["MIN_RESOLUTION"],
-    )
-    fnd_obj.resolution = resolution
-    aoi_obj.resolution = resolution
+    fnd_obj, aoi_obj = preprocess(config)
     run_bar.update(7, force=True)
     fnd_obj.prep()
     run_bar.update(45)
@@ -324,17 +305,42 @@ def run(config):
 
     print("═════BEGINNING COARSE REGISTRATION═════")
     status.update(stage="Performing Coarse Registration", force=True)
-    dsm_reg = D.DsmRegistration(fnd_obj, aoi_obj, config)
-    dsm_reg.register()
+
+    dsm_reg = coarse_registration(fnd_obj, aoi_obj, config)
     run_bar.update(22)
 
     print("══════BEGINNING FINE REGISTRATION══════")
     status.update(stage="Performing Fine Registration", force=True)
-    icp_reg = I.IcpRegistration(fnd_obj, aoi_obj, dsm_reg, config)
-    icp_reg.register()
+    icp_reg = fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
     run_bar.update(16)
 
     print("═════════APPLYING REGISTRATION═════════")
+    apply_registration(fnd_obj, aoi_obj, icp_reg, config)
+    run_bar.update(5, force=True)
+
+
+def preprocess(config: typing.Dict[str, typing.Any]) -> typing.Tuple[typing.Any, typing.Any]:
+    fnd_obj = instantiate(config, fnd=True)
+    aoi_obj = instantiate(config, fnd=False)
+    resolution = max(
+        fnd_obj.native_resolution,
+        aoi_obj.native_resolution,
+        config["MIN_RESOLUTION"]
+    ) 
+    fnd_obj.resolution = aoi_obj.resolution = resolution
+    return (fnd_obj, aoi_obj)
+
+def coarse_registration(fnd_obj, aoi_obj, config):
+    dsm_reg = D.DsmRegistration(fnd_obj, aoi_obj, config)
+    dsm_reg.register()
+    return dsm_reg
+
+def fine_registration(fnd_obj, aoi_obj, dsm_reg, config):
+    icp_reg = I.IcpRegistration(fnd_obj, aoi_obj, dsm_reg, config)
+    icp_reg.register()
+    return icp_reg
+
+def apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format=None) -> str:
     app_reg = A.ApplyRegistration(
         fnd_obj,
         aoi_obj,
@@ -342,17 +348,16 @@ def run(config):
         icp_reg.residual_vectors,
         icp_reg.residual_origins,
         config,
+        output_format
     )
     app_reg.apply()
-    run_bar.update(5, force=True)
-
+    return app_reg.out_name
 
 def main():
     args = get_args()
     config = create_config(args)
-    validate_config(config)
     Log(config)
-    run(config)
+    run_console(config)
 
 
 if __name__ == "__main__":

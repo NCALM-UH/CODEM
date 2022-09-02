@@ -260,7 +260,7 @@ class IcpRegistration:
         if alpha != 0:
             weights = (1 + (r / beta) ** 2) ** (alpha / 2 - 1)
         else:
-            weights = beta ** 2 / (beta ** 2 + r ** 2)
+            weights = beta**2 / (beta**2 + r**2)
 
         return diags(weights)
 
@@ -359,7 +359,7 @@ class IcpRegistration:
         transform[:3, 3] = T
 
         euler = np.rad2deg(np.arccos(np.clip((np.trace(R) - 1) / 2, -1, 1)))
-        distance = np.sqrt(np.sum(T ** 2))
+        distance = np.sqrt(np.sum(T**2))
 
         return transform, euler, distance
 
@@ -436,7 +436,7 @@ class IcpRegistration:
         transform[:3, 3] = T
 
         euler = np.rad2deg(np.arccos(np.clip((np.trace(R) - 1) / 2, -1, 1)))
-        distance = np.sqrt(np.sum(T ** 2))
+        distance = np.sqrt(np.sum(T**2))
 
         return transform, euler, distance
 
