@@ -9,12 +9,12 @@ We will register a PLY format mesh AOI to a LAZ format point cloud Foundation da
 ![Example Unregistered](./img/example_unregistered.png)
 
 
-## 2. Running MODEM
-We will override the default setting for the pipeline minimum resolution by using the `--min_resolution` option when running `MODEM`:
+## 2. Running CODEM
+We will override the default setting for the pipeline minimum resolution by using the `--min_resolution` option when running `CODEM`:
 ```
-(modem) pjhartze@GSE-10:~/dev/modem$ modem demo/Foundation-PointCloud.laz demo/AOI-Mesh.ply --min_resolution 2.0
+$ codem demo/Foundation-PointCloud.laz demo/AOI-Mesh.ply --min_resolution 2.0
 ╔════════════════════════════════════╗
-║               MODEM                ║
+║               CODEM                ║
 ╚════════════════════════════════════╝
 ║     AUTHORS: Preston Hartzell  &   ║
 ║     Jesse Shanahan                 ║
@@ -40,7 +40,7 @@ We will override the default setting for the pipeline minimum resolution by usin
 11:11:49 - INFO - ICP_SOLVE_SCALE = True
 11:11:49 - INFO - VERBOSE = False
 11:11:49 - INFO - ICP_SAVE_RESIDUALS = False
-11:11:49 - INFO - OUTPUT_DIR = /home/pjhartze/dev/modem/demo/registration_2021-08-05_11-11-49
+11:11:49 - INFO - OUTPUT_DIR = /home/pjhartze/dev/codem/demo/registration_2021-08-05_11-11-49
 ══════════PREPROCESSING DATA══════════
 11:11:53 - INFO - Linear unit for Foundation-PCLOUD detected as metre.
 11:11:53 - INFO - Calculated native resolution for Foundation-PCLOUD as: 0.6 meters
@@ -53,17 +53,17 @@ We will override the default setting for the pipeline minimum resolution by usin
 11:12:02 - INFO - Registration resolution has been set to: 2.0 meters
 ═════BEGINNING COARSE REGISTRATION═════
 11:12:02 - INFO - Solving DSM feature registration.
-11:12:05 - INFO - Saving DSM feature match visualization to: /home/pjhartze/dev/modem/demo/registration_2021-08-05_11-11-49/dsm_feature_matches.png
-11:12:05 - INFO - Saving DSM feature registration parameters to: /home/pjhartze/dev/modem/demo/registration_2021-08-05_11-11-49/registration.txt
+11:12:05 - INFO - Saving DSM feature match visualization to: /home/pjhartze/dev/codem/demo/registration_2021-08-05_11-11-49/dsm_feature_matches.png
+11:12:05 - INFO - Saving DSM feature registration parameters to: /home/pjhartze/dev/codem/demo/registration_2021-08-05_11-11-49/registration.txt
 ══════BEGINNING FINE REGISTRATION══════
 11:12:05 - INFO - Solving ICP registration.
-11:12:05 - INFO - Saving ICP registration parameters to: /home/pjhartze/dev/modem/demo/registration_2021-08-05_11-11-49/registration.txt
+11:12:05 - INFO - Saving ICP registration parameters to: /home/pjhartze/dev/codem/demo/registration_2021-08-05_11-11-49/registration.txt
 ═════════APPLYING REGISTRATION═════════
-11:12:06 - INFO - Registration has been applied to AOI-MESH and saved to: /home/pjhartze/dev/modem/demo/registration_2021-08-05_11-11-49/AOI-Mesh_registered.ply
+11:12:06 - INFO - Registration has been applied to AOI-MESH and saved to: /home/pjhartze/dev/codem/demo/registration_2021-08-05_11-11-49/AOI-Mesh_registered.ply
 
-MODEM                                  Stage: Performing Fine Registration                                   00:16
+CODEM                                  Stage: Performing Fine Registration                                   00:16
 Registration Process 100%|█████████████████████████████████████████████████████████| 100/100 [00:17<00:00, 5.84/s]
-(modem) pjhartze@GSE-10:~/dev/modem$ 
+$ 
 ```
 
 Upon completion, all output, including a registered version of the AOI data file named `AOI-Mesh_registered.ply`, is saved to a new directory at the AOI file location. For this example, the new directory name is `registration_2021-08-05_11-11-49`.
