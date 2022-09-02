@@ -1,4 +1,4 @@
-name: modem
+name: codem
 channels:
   - conda-forge
 dependencies:

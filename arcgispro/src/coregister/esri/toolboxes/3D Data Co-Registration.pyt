@@ -3,7 +3,7 @@ import json
 import arcpy
 import subprocess
 import pdal
-import modem
+import codem
 import dataclasses
 
 class Toolbox(object):
@@ -252,7 +252,7 @@ class Register_DEM2DEM(object):
 
         arcpy.SetProgressor("step", "Registering AOI to Foundation", 0, 5)
 
-        cmd = ["modem"]
+        cmd = ["codem"]
         cmd.append(os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/"))
         cmd.append(os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/"))
         for parameter in parameters[2:]:
@@ -468,10 +468,10 @@ class Register_MultiType(object):
         )
 
         # Foundation data file
-        # fnd.value = "E:\dev\modem\demo\Foundation-PointCloud.laz"
+        # fnd.value = "E:\dev\codem\demo\Foundation-PointCloud.laz"
         fnd.filter.list = ['las', 'laz', 'bpf', 'ply', 'obj', 'tif', 'tiff']
         # AOI data file
-        # aoi.value = "E:\dev\modem\demo\AOI-Mesh.ply"
+        # aoi.value = "E:\dev\codem\demo\AOI-Mesh.ply"
         aoi.filter.list = ['las', 'laz', 'bpf', 'ply', 'obj', 'tif', 'tiff']
 
         # Minimum pipeline resolution
@@ -562,32 +562,31 @@ class Register_MultiType(object):
         arcpy.SetProgressor("step", "Registering AOI to Foundation", 0, 5)
 
         kwargs = {parameter.name.upper(): parameter.value for parameter in parameters[2:]}
-        modem_run_config = modem.ModemRunConfig(
+        codem_run_config = codem.CodemRunConfig(
             fnd_full_path,
             aoi_full_path,
             **kwargs
         )
-        config = dataclasses.asdict(modem_run_config)
+        config = dataclasses.asdict(codem_run_config)
 
         arcpy.SetProgressorLabel("Step 1/4: Prepping AOI and Foundation Data")
         arcpy.SetProgressorPosition()
-        fnd_obj, aoi_obj = modem.preprocess(config)
+        fnd_obj, aoi_obj = codem.preprocess(config)
 
         fnd_obj.prep()
         aoi_obj.prep()
 
         arcpy.SetProgressorLabel("Step 2/4: Solving Coarse Registration")
         arcpy.SetProgressorPosition()
-        dsm_reg = modem.coarse_registration(fnd_obj, aoi_obj, config)
+        dsm_reg = codem.coarse_registration(fnd_obj, aoi_obj, config)
 
         arcpy.SetProgressorLabel("Step 3/4: Solving Fine Registration")
         arcpy.SetProgressorPosition()
-        icp_reg = modem.fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
-
+        icp_reg = codem.fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
 
         arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
         arcpy.SetProgressorPosition()
-        reg_file = modem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format='las')
+        reg_file = codem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format='las')
 
         if not os.path.exists(reg_file):
             arcpy.AddError("Registration file not generated")

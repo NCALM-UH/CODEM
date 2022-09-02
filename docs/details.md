@@ -1,9 +1,9 @@
 # Detailed Overview
-`MODEM` (Multi-Modal Digital Elevation Model Registration) is a spatial data co-registration tool developed in Python.
+`CODEM` (Multi-Modal Digital Elevation Model Registration) is a spatial data co-registration tool developed in Python.
 
 
 ## Concept
-Conceptually, `MODEM` consists of two back-to-back registration modules:
+Conceptually, `CODEM` consists of two back-to-back registration modules:
 1. An initial coarse global registration based on matched features extracted from digital surface models (DSMs) generated from the AOI and Foundation data sources.
 2. A fine local registration based on an iterative closest point (ICP) algorithm applied to the AOI and Foundation data.
 
@@ -11,7 +11,7 @@ Each registration module solves a 6- or 7-parameter similarity transformation (t
 
 A flowchart illustrating the registration pipeline is given below.
 
-![`MODEM` flowchart](./img/flowchart.png)
+![`CODEM` flowchart](./img/flowchart.png)
 
 
 ## Pipeline Details
@@ -51,7 +51,7 @@ The final registration transformation is applied to the original AOI data file t
 
 
 ## Inputs & Outputs
-`MODEM` was designed to be agnostic to data types and file formats. Thus, `MODEM` accepts point cloud, mesh, and DSM data types. File formats are currently limited to LAS, LAZ, and BPF for point clouds, PLY and OBJ for mesh data, and GeoTIFF images for DSMs. Additionally file formats can be added if necessary, as I/O for each data type is handled by generic libraries: [PDAL](https://pdal.io/) for point clouds, [trimesh](https://trimsh.org/index.html) for mesh data, and [GDAL](https://gdal.org/) for DSM raster products.
+`CODEM` was designed to be agnostic to data types and file formats. Thus, `CODEM` accepts point cloud, mesh, and DSM data types. File formats are currently limited to LAS, LAZ, and BPF for point clouds, PLY and OBJ for mesh data, and GeoTIFF images for DSMs. Additionally file formats can be added if necessary, as I/O for each data type is handled by generic libraries: [PDAL](https://pdal.io/) for point clouds, [trimesh](https://trimsh.org/index.html) for mesh data, and [GDAL](https://gdal.org/) for DSM raster products.
 
 All output is saved to a new directory that is created at the location of the AOI file. The directory name is tagged with the date and time of execution: `registration_YYYY-MM-DD_HH-MM-SS`. The directory contents include the following:
 1. Registered AOI Data File: The registered AOI file will be of the same data type and file format as the original AOI file and will have the same name with term "`_registered`" appended to end of the name.
@@ -115,14 +115,14 @@ Z = +/-0.315,
 
 
 ## Assumptions and Limitations
-* `MODEM` assumes the Foundation and AOI data has been preprocessed to remove stray data, e.g., in-air points from atmospheric returns in lidar point clouds. Additional preprocessing filters can be added to `MODEM` if necessary.
-* DSM data (GeoTIFF format) must not contain a rotation or differing scales in the X and Y directions (these are defined by the transform in the GeoTIFF file). `MODEM` will abort the registration process if either of these conditions is encountered.
-* Very small areas (e.g., 100 x 100 meters) or very coarse resolution data (e.g., a DSM with 10 meter pixels) may contain insufficient information for `MODEM` to solve the registration.
+* `CODEM` assumes the Foundation and AOI data has been preprocessed to remove stray data, e.g., in-air points from atmospheric returns in lidar point clouds. Additional preprocessing filters can be added to `CODEM` if necessary.
+* DSM data (GeoTIFF format) must not contain a rotation or differing scales in the X and Y directions (these are defined by the transform in the GeoTIFF file). `CODEM` will abort the registration process if either of these conditions is encountered.
+* Very small areas (e.g., 100 x 100 meters) or very coarse resolution data (e.g., a DSM with 10 meter pixels) may contain insufficient information for `CODEM` to solve the registration.
 * Data file formats are currently limited to the following (more can be added if necessary):
     * Point Clouds: LAS, LAZ, and BPF
     * DSMs: GeoTIFF
     * Mesh: PLY and OBJ
-* `MODEM` cannot handle large (> 50%) differences in scale between Foundation and AOI data.
+* `CODEM` cannot handle large (> 50%) differences in scale between Foundation and AOI data.
 * If data a lacks linear unit type, meters will be assumed.
 
 
