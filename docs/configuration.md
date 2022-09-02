@@ -1,10 +1,11 @@
-# Configuring MODEM
+# Configuring CODEM
 
 ## Overview
-Numerous algorithm parameters can be tuned when running `MODEM` by specifying option names and values. The available options can be viewed by running `modem --help`:
+Numerous algorithm parameters can be tuned when running `CODEM` by specifying option names and values. The available options can be viewed by running `codem --help`:
+
 ```
-(modem) pjhartze@GSE-10:~/dev/modem$ modem --help
-usage: modem [-h] [--min_resolution MIN_RESOLUTION] [--dsm_akaze_threshold DSM_AKAZE_THRESHOLD]
+$ codem --help
+usage: codem [-h] [--min_resolution MIN_RESOLUTION] [--dsm_akaze_threshold DSM_AKAZE_THRESHOLD]
              [--dsm_lowes_ratio DSM_LOWES_RATIO] [--dsm_ransac_max_iter DSM_RANSAC_MAX_ITER]
              [--dsm_ransac_threshold DSM_RANSAC_THRESHOLD] [--dsm_solve_scale DSM_SOLVE_SCALE]
              [--dsm_strong_filter DSM_STRONG_FILTER] [--dsm_weak_filter DSM_WEAK_FILTER]
