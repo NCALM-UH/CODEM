@@ -30,6 +30,7 @@ import logging
 import trimesh
 import pdal
 import json
+import tempfile
 import rasterio
 import rasterio.fill
 import numpy as np
@@ -81,8 +82,8 @@ class GeoData:
         self.native_resolution = None
         self.units_factor = 1.0
         self.units = None
-        self.weak_size = config["DSM_WEAK_FILTER_SIZE"]
-        self.strong_size = config["DSM_STRONG_FILTER_SIZE"]
+        self.weak_size = config["DSM_WEAK_FILTER"]
+        self.strong_size = config["DSM_STRONG_FILTER"]
 
     def _read_dsm(self, file_path: str):
         """
@@ -100,24 +101,25 @@ class GeoData:
         tag = ["AOI", "Foundation"][int(self.fnd)]
 
         if self.dsm is None:
-            data = rasterio.open(file_path)
-            self.dsm = data.read(1)
-            self.transform = data.transform
-            self.nodata = data.nodata
-            self.crs = data.crs
+            # data = rasterio.open(file_path)
+            with rasterio.open(file_path) as data:
+                self.dsm = data.read(1)
+                self.transform = data.transform
+                self.nodata = data.nodata
+                self.crs = data.crs
 
-            tags = data.tags()
-            if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
-                self.area_or_point = "Area"
-            elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
-                self.area_or_point = "Point"
-            else:
-                self.area_or_point = "Area"
-                self.logger.debug(
-                    f"'AREA_OR_POINT' not supplied in {tag}-{self.type.upper()} - defaulting to 'Area'"
-                )
+                tags = data.tags()
+                if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
+                    self.area_or_point = "Area"
+                elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
+                    self.area_or_point = "Point"
+                else:
+                    self.area_or_point = "Area"
+                    self.logger.debug(
+                        f"'AREA_OR_POINT' not supplied in {tag}-{self.type.upper()} - defaulting to 'Area'"
+                    )
 
-            data.close()
+            # data.close()
 
         if self.nodata is None:
             self.logger.info(f"{tag}-{self.type.upper()} does not have a nodata value.")
@@ -241,12 +243,11 @@ class GeoData:
             {"type": "filters.normal", "knn": k},
         ]
         p = pdal.Pipeline(
-            json=json.dumps(pipe),
+            json.dumps(pipe),
             arrays=[
                 xyz,
             ],
         )
-        p.validate()
         p.execute()
 
         arrays = p.arrays
@@ -416,27 +417,26 @@ class PointCloud(GeoData):
         units_transform = "{} 0 0 0 0 {} 0 0 0 0 {} 0 0 0 0 1".format(
             self.units_factor, self.units_factor, self.units_factor
         )
+        file_handle, tmp_file = tempfile.mkstemp(suffix=".tif")
 
         pipe = [
             self.file,
-            {
-                "type": "filters.transformation",
-                "matrix": units_transform,
-            },
+            {"type": "filters.transformation", "matrix": units_transform},
             {
                 "type": "writers.gdal",
                 "resolution": self.resolution,
                 "output_type": "max",
                 "nodata": -9999.0,
-                "filename": "temp_dsm.tif",
+                "filename": tmp_file,
             },
         ]
-        p = pdal.Pipeline(json=json.dumps(pipe))
-        p.validate()
+
+        p = pdal.Pipeline(json.dumps(pipe))
         p.execute()
 
-        self._read_dsm("temp_dsm.tif")
-        os.remove("temp_dsm.tif")
+        self._read_dsm(tmp_file)
+        os.close(file_handle)
+        os.remove(tmp_file)
 
     def _calculate_resolution(self):
         """
@@ -450,8 +450,8 @@ class PointCloud(GeoData):
         pipeline.execute()
 
         tag = ["AOI", "Foundation"][int(self.fnd)]
-
-        metadata = json.loads(pipeline.metadata)["metadata"]
+        # metadata = json.loads(pipeline.metadata)["metadata"]
+        metadata = pipeline.metadata["metadata"]
         reader_metadata = [val for key, val in metadata.items() if "readers" in key]
         if reader_metadata[0]["srs"]["horizontal"] == "":
             self.logger.warning(
@@ -529,12 +529,11 @@ class Mesh(GeoData):
             },
         ]
         p = pdal.Pipeline(
-            json=json.dumps(pipe),
+            json.dumps(pipe),
             arrays=[
                 xyz,
             ],
         )
-        p.validate()
         p.execute()
 
         self._read_dsm("temp_dsm.tif")
@@ -550,7 +549,8 @@ class Mesh(GeoData):
         ]
         pipeline = pdal.Pipeline(json.dumps(pipeline))
         pipeline.execute()
-        metadata = json.loads(pipeline.metadata)["metadata"]
+        # metadata = json.loads(pipeline.metadata)["metadata"]
+        metadata = pipeline.metadata["metadata"]
         spacing = metadata["filters.hexbin"]["avg_pt_spacing"]
 
         mesh = trimesh.load_mesh(self.file)

@@ -13,3 +13,5 @@ arcgis/*
 !arcgis/*.pyt.xml
 !arcgis/*.yml
 !arcgis/*pdf
+
+.DS_Store
