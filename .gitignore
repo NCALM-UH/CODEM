@@ -3,7 +3,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
-demo/MODEM_*
+demo/CODEM_*
 demo/registration_*
 docker/
 
