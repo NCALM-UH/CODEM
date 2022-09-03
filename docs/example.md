@@ -1,17 +1,19 @@
 # Example
 
 ## 1. Unregistered AOI
+
 We will register a PLY format mesh AOI to a LAZ format point cloud Foundation data source. The AOI mesh data (color) is rotated and displaced with respect to the Foundation point cloud (grayscale). The data files are found in the `demo` directory of this repository.
+
 * Foundation file = `demo/Foundation-PointCloud.laz`
 * AOI file = `demo/AOI-Mesh.ply`
 
-
 ![Example Unregistered](./img/example_unregistered.png)
 
-
 ## 2. Running CODEM
+
 We will override the default setting for the pipeline minimum resolution by using the `--min_resolution` option when running `CODEM`:
-```
+
+```bash
 $ codem demo/Foundation-PointCloud.laz demo/AOI-Mesh.ply --min_resolution 2.0
 ╔════════════════════════════════════╗
 ║               CODEM                ║
@@ -63,15 +65,17 @@ $ codem demo/Foundation-PointCloud.laz demo/AOI-Mesh.ply --min_resolution 2.0
 
 CODEM                                  Stage: Performing Fine Registration                                   00:16
 Registration Process 100%|█████████████████████████████████████████████████████████| 100/100 [00:17<00:00, 5.84/s]
-$ 
+$
 ```
 
 Upon completion, all output, including a registered version of the AOI data file named `AOI-Mesh_registered.ply`, is saved to a new directory at the AOI file location. For this example, the new directory name is `registration_2021-08-05_11-11-49`.
 
 ## 3. Registered AOI
+
 The registered AOI mesh overlaid on the Foundation point cloud is shown below.
 
 ![Example Registered](./img/example_registered.png)
 
 ## 4. Additional Examples
+
 An unregistered point cloud AOI file and an unregistered DSM AOI file are also supplied in the `demo` directory for further experimentation/demonstration with different data types.
