@@ -199,10 +199,10 @@ class IcpRegistration:
     def _residuals(
         self,
         fixed_tree: spatial.cKDTree,
-        fixed: np.array,
-        normals: np.array,
-        moving: np.array,
-    ) -> Tuple[np.array, np.array]:
+        fixed: np.ndarray,
+        normals: np.ndarray,
+        moving: np.ndarray,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Generates residual vectors for visualization purposes to illustrate the
         approximate orthogonal difference between the foundation and AOI
@@ -225,9 +225,9 @@ class IcpRegistration:
 
     def _get_weights(
         self,
-        fixed: np.array,
-        normals: np.array,
-        moving: np.array,
+        fixed: np.ndarray,
+        normals: np.ndarray,
+        moving: np.ndarray,
         alpha: float,
         beta: float,
     ) -> diags:
@@ -264,7 +264,7 @@ class IcpRegistration:
 
         return diags(weights)
 
-    def _apply_transform(self, points: np.array, transform: np.array) -> np.array:
+    def _apply_transform(self, points: np.ndarray, transform: np.ndarray) -> np.ndarray:
         """
         Applies a 4x4 homogeneous transformation matrix to an array of 3D point
         coordinates.
@@ -287,8 +287,8 @@ class IcpRegistration:
         return transformed_points[:, 0:3]
 
     def _scaled(
-        self, fixed: np.array, normals: np.array, moving: np.array, weights: diags
-    ) -> Tuple[np.array, float, float]:
+        self, fixed: np.ndarray, normals: np.ndarray, moving: np.ndarray, weights: diags
+    ) -> Tuple[np.ndarray, float, float]:
         """
         Solves a scaled rigid-body transformation (7-parameter) that minimizes
         the point to plane distances.
@@ -364,8 +364,8 @@ class IcpRegistration:
         return transform, euler, distance
 
     def _unscaled(
-        self, fixed: np.array, normals: np.array, moving: np.array, weights: diags
-    ) -> Tuple[np.array, float, float]:
+        self, fixed: np.ndarray, normals: np.ndarray, moving: np.ndarray, weights: diags
+    ) -> Tuple[np.ndarray, float, float]:
         """
         Solves a rigid-body transformation (6-parameter) that minimizes
         the point to plane distances.

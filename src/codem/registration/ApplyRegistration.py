@@ -59,9 +59,9 @@ class ApplyRegistration:
         self,
         fnd_obj,
         aoi_obj,
-        registration_parameters: np.array,
-        residual_vectors: np.array,
-        residual_origins: np.array,
+        registration_parameters: np.ndarray,
+        residual_vectors: np.ndarray,
+        residual_origins: np.ndarray,
         config: Dict[str, Any],
         output_format: Optional[str]
     ):
@@ -87,7 +87,7 @@ class ApplyRegistration:
         out_name = root + "_registered" + ext
         self.out_name = os.path.join(self.config["OUTPUT_DIR"], out_name)
 
-    def get_registration_transformation(self) -> Union[np.array, dict]:
+    def get_registration_transformation(self) -> Union[np.ndarray, dict]:
         """
         Generates the transformation from the AOI to FND coordinate system.
         The transformation accommodates linear unit differences and the solved
@@ -105,8 +105,8 @@ class ApplyRegistration:
         meters_to_fnd[3, 3] = 1
 
         aoi_to_fnd_array = meters_to_fnd @ self.registration_transform @ aoi_to_meters
-        aoi_to_fnd_string = np.reshape(aoi_to_fnd_array, (1, 16))
-        aoi_to_fnd_string = [" ".join(item) for item in aoi_to_fnd_string.astype(str)][
+        aoi_to_fnd_array = np.reshape(aoi_to_fnd_array, (1, 16))
+        aoi_to_fnd_string = [" ".join(item) for item in aoi_to_fnd_array.astype(str)][
             0
         ]
 
@@ -390,8 +390,8 @@ class ApplyRegistration:
             )
 
     def _interpolate_residuals(
-        self, x: np.array, y: np.array
-    ) -> Tuple[np.array, np.array, np.array, np.array, np.array]:
+        self, x: np.ndarray, y: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Interpolate ICP residuals at registered AOI x,y locations. The
         registration is solved using a gridded set of points, while the AOI
