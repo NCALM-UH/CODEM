@@ -15,16 +15,16 @@ This module contains the following classes:
 * Scaled3dSimilarityTransform: a class for solving the 7-parameter
   transformation (includes a scale factor) between two sets of 3D points.
 """
-import os
-import cv2
 import logging
+import os
+from typing import Tuple
+
+import cv2
 import numpy as np
 import numpy.typing as npt
-
-from skimage.measure import ransac
-from rasterio import Affine
-from typing import Tuple
 from codem.preprocessing.preprocess import GeoData
+from rasterio import Affine
+from skimage.measure import ransac
 
 
 class DsmRegistration:
@@ -133,7 +133,7 @@ class DsmRegistration:
         * https://docs.opencv.org/master/dc/dc3/tutorial_py_matcher.html
         * https://luckytaylor.top/modules/flann/doc/flann_fast_approximate_nearest_neighbor_search.html
         """
-        if self.aoi_desc.shape[0] > 2 ** 17 or self.fnd_desc.shape[0] > 2 ** 17:
+        if self.aoi_desc.shape[0] > 2**17 or self.fnd_desc.shape[0] > 2**17:
             FLANN_INDEX_LSH = 6
             index_params = dict(
                 algorithm=FLANN_INDEX_LSH,
@@ -208,7 +208,7 @@ class DsmRegistration:
         self.logger.debug(f"{np.sum(inliers)} keypoint matches found.")
         assert np.sum(inliers) >= 4, "Less than four keypoint matches found."
 
-        T = model.transform
+        T: np.ndarray = model.transform
         c = np.sqrt(T[0, 0] ** 2 + T[1, 0] ** 2 + T[2, 0] ** 2)
         assert (
             c > 0.67 and c < 1.5
@@ -452,9 +452,12 @@ class Scaled3dSimilarityTransform:
         src = np.hstack((src, np.ones((src.shape[0], 1))))
         src_transformed = (self.transform @ src.T).T
         src_transformed = src_transformed[:, 0:3]
-        return np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
+        residuals: np.ndarray = np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
+        return residuals
 
-    def _umeyama(self, src: np.ndarray, dst: np.ndarray, estimate_scale: bool) -> np.ndarray:
+    def _umeyama(
+        self, src: np.ndarray, dst: np.ndarray, estimate_scale: bool
+    ) -> np.ndarray:
         """
         Estimate N-D similarity transformation with or without scaling.
 
@@ -498,14 +501,14 @@ class Scaled3dSimilarityTransform:
         if np.linalg.det(A) < 0:
             d[dim - 1] = -1
 
-        T = np.eye(dim + 1, dtype=np.double)
+        T: np.ndarray = np.eye(dim + 1, dtype=np.double)
 
         U, S, V = np.linalg.svd(A)
 
         # Eq. (40) and (43).
         rank = np.linalg.matrix_rank(A)
         if rank == 0:
-            return np.nan * T
+            return np.full_like(T, np.nan)
         elif rank == dim - 1:
             if np.linalg.det(U) * np.linalg.det(V) > 0:
                 T[:dim, :dim] = U @ V
@@ -525,7 +528,6 @@ class Scaled3dSimilarityTransform:
 
         T[:dim, dim] = dst_mean - scale * (T[:dim, :dim] @ src_mean.T)
         T[:dim, :dim] *= scale
-
         return T
 
 
@@ -580,9 +582,12 @@ class Unscaled3dSimilarityTransform:
         src = np.hstack((src, np.ones((src.shape[0], 1))))
         src_transformed = (self.transform @ src.T).T
         src_transformed = src_transformed[:, 0:3]
-        return np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
+        residuals: np.ndarray = np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
+        return residuals
 
-    def _umeyama(self, src: np.ndarray, dst: np.ndarray, estimate_scale: bool) -> np.ndarray:
+    def _umeyama(
+        self, src: np.ndarray, dst: np.ndarray, estimate_scale: bool
+    ) -> np.ndarray:
         """
         Estimate N-D similarity transformation with or without scaling.
 
@@ -626,14 +631,14 @@ class Unscaled3dSimilarityTransform:
         if np.linalg.det(A) < 0:
             d[dim - 1] = -1
 
-        T = np.eye(dim + 1, dtype=np.double)
+        T: np.ndarray = np.eye(dim + 1, dtype=np.double)
 
         U, S, V = np.linalg.svd(A)
 
         # Eq. (40) and (43).
         rank = np.linalg.matrix_rank(A)
         if rank == 0:
-            return np.nan * T
+            return np.full_like(T, np.nan)
         elif rank == dim - 1:
             if np.linalg.det(U) * np.linalg.det(V) > 0:
                 T[:dim, :dim] = U @ V

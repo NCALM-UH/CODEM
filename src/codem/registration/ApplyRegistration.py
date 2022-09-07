@@ -10,18 +10,23 @@ This module contains the following class:
 * ApplyRegistration: a class for applying registration results to the original
   unregistered AOI data file
 """
-import os
-from typing import Union
 import json
 import logging
+import os
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Tuple
+from typing import Union
+
+import codem.lib.resources as r
+import numpy as np
 import pdal
 import rasterio
 import trimesh
-import numpy as np
-import codem.lib.resources as r
-from typing import Tuple, Dict, Optional, Any
+from matplotlib.tri import LinearTriInterpolator
+from matplotlib.tri import Triangulation
 from numpy.lib import recfunctions as rfn
-from matplotlib.tri import Triangulation, LinearTriInterpolator
 
 
 class ApplyRegistration:
@@ -34,7 +39,7 @@ class ApplyRegistration:
         The foundation data object
     aoi_obj: GeoData object
         The area of interest data object
-    registration_parameters: np.array
+    registration_parameters: Dict[str, np.ndarray]
         Registration parameters from IcpRegistration
     residual_vectors: np.array
         Point to plane direction used in final ICP iteration
@@ -63,7 +68,7 @@ class ApplyRegistration:
         residual_vectors: np.ndarray,
         residual_origins: np.ndarray,
         config: Dict[str, Any],
-        output_format: Optional[str]
+        output_format: Optional[str],
     ):
         self.logger = logging.getLogger(__name__)
         self.fnd_crs = fnd_obj.crs
@@ -79,15 +84,14 @@ class ApplyRegistration:
         self.residual_origins = residual_origins
         self.config = config
 
-
         in_name = os.path.basename(self.aoi_file)
         root, ext = os.path.splitext(in_name)
         if output_format is not None:
             ext = f".{output_format}"
         out_name = root + "_registered" + ext
-        self.out_name = os.path.join(self.config["OUTPUT_DIR"], out_name)
+        self.out_name: str = os.path.join(self.config["OUTPUT_DIR"], out_name)
 
-    def get_registration_transformation(self) -> Union[np.ndarray, dict]:
+    def get_registration_transformation(self) -> Union[np.ndarray, Dict[str, str]]:
         """
         Generates the transformation from the AOI to FND coordinate system.
         The transformation accommodates linear unit differences and the solved
@@ -104,15 +108,17 @@ class ApplyRegistration:
         meters_to_fnd = np.eye(4) * (1 / self.fnd_units_factor)
         meters_to_fnd[3, 3] = 1
 
-        aoi_to_fnd_array = meters_to_fnd @ self.registration_transform @ aoi_to_meters
-        aoi_to_fnd_array = np.reshape(aoi_to_fnd_array, (1, 16))
-        aoi_to_fnd_string = [" ".join(item) for item in aoi_to_fnd_array.astype(str)][
-            0
-        ]
+        aoi_to_fnd_array: np.ndarray = (
+            meters_to_fnd @ self.registration_transform @ aoi_to_meters
+        )
 
         if self.aoi_type == "mesh":
             return aoi_to_fnd_array
         else:
+            aoi_to_fnd_array = np.reshape(aoi_to_fnd_array, (1, 16))
+            aoi_to_fnd_string = [
+                " ".join(item) for item in aoi_to_fnd_array.astype(str)
+            ][0]
             if self.fnd_crs is not None:
                 registration_transformation = {
                     "type": "filters.transformation",
