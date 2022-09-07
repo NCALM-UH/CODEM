@@ -5,4 +5,4 @@ import codem.registration.DsmRegistration as DsmRegistration
 import codem.registration.IcpRegistration as IcpRegistration
 import codem.registration.ApplyRegistration as ApplyRegistration
 import codem.main
-from codem.main import CodemRunConfig, preprocess, coarse_registration, fine_registration, apply_registration
+from codem.main import CodemRunConfig, coarse_registration, fine_registration, apply_registration

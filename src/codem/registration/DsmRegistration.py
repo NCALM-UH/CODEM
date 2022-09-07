@@ -19,6 +19,7 @@ import os
 import cv2
 import logging
 import numpy as np
+import numpy.typing as npt
 
 from skimage.measure import ransac
 from rasterio import Affine
@@ -99,7 +100,7 @@ class DsmRegistration:
         self._get_rmse()
         self._output()
 
-    def _get_kp(self, img: np.array, mask: np.array) -> Tuple[list, np.array]:
+    def _get_kp(self, img: np.ndarray, mask: np.ndarray) -> Tuple[list, np.ndarray]:
         """
         Extracts AKAZE features, in the form of keypoints and descriptors,
         from an 8-bit grayscale image.
@@ -272,8 +273,8 @@ class DsmRegistration:
         cv2.imwrite(output_file, kp_lines)
 
     def _get_geo_coords(
-        self, uv: np.array, transform: Affine, area_or_point: str, dsm: np.array
-    ) -> np.array:
+        self, uv: np.ndarray, transform: Affine, area_or_point: str, dsm: np.ndarray
+    ) -> np.ndarray:
         """
         Converts image space coordinates to object space coordinates. The passed
         uv coordinates must be relative to an origin at the center of the upper
@@ -317,9 +318,9 @@ class DsmRegistration:
             temp = transform * (cr)
             xy.append([temp[0], temp[1]])
 
-        z = np.asarray(z)
-        xy = np.asarray(xy)
-        xyz = np.vstack((xy.T, z)).T
+        z_ = np.asarray(z)
+        xy_ = np.asarray(xy)
+        xyz = np.vstack((xy_.T, z_)).T
 
         return xyz
 
@@ -410,7 +411,7 @@ class Scaled3dSimilarityTransform:
     def __init__(self):
         self.solve_scale = True
 
-    def estimate(self, src: np.array, dst: np.array) -> bool:
+    def estimate(self, src: np.ndarray, dst: np.ndarray) -> bool:
         """
         Function to estimate the least squares transformation between the source
         (src) and destination (dst) 3D point pairs.
@@ -431,7 +432,7 @@ class Scaled3dSimilarityTransform:
         self.transform = self._umeyama(src, dst, self.solve_scale)
         return True
 
-    def residuals(self, src: np.array, dst: np.array) -> np.array:
+    def residuals(self, src: np.ndarray, dst: np.ndarray) -> np.ndarray:
         """
         Function to compute residual distance between each point pair after
         registration
@@ -453,7 +454,7 @@ class Scaled3dSimilarityTransform:
         src_transformed = src_transformed[:, 0:3]
         return np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
 
-    def _umeyama(self, src: np.array, dst: np.array, estimate_scale: bool) -> np.array:
+    def _umeyama(self, src: np.ndarray, dst: np.ndarray, estimate_scale: bool) -> np.ndarray:
         """
         Estimate N-D similarity transformation with or without scaling.
 
@@ -538,7 +539,7 @@ class Unscaled3dSimilarityTransform:
     def __init__(self):
         self.solve_scale = False
 
-    def estimate(self, src: np.array, dst: np.array) -> bool:
+    def estimate(self, src: np.ndarray, dst: np.ndarray) -> bool:
         """
         Function to estimate the least squares transformation between the source
         (src) and destination (dst) 3D point pairs.
@@ -559,7 +560,7 @@ class Unscaled3dSimilarityTransform:
         self.transform = self._umeyama(src, dst, self.solve_scale)
         return True
 
-    def residuals(self, src: np.array, dst: np.array) -> np.array:
+    def residuals(self, src: np.ndarray, dst: np.ndarray) -> np.ndarray:
         """
         Function to compute residual distance between each point pair after
         registration
@@ -581,7 +582,7 @@ class Unscaled3dSimilarityTransform:
         src_transformed = src_transformed[:, 0:3]
         return np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
 
-    def _umeyama(self, src: np.array, dst: np.array, estimate_scale: bool) -> np.array:
+    def _umeyama(self, src: np.ndarray, dst: np.ndarray, estimate_scale: bool) -> np.ndarray:
         """
         Estimate N-D similarity transformation with or without scaling.
 

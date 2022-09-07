@@ -11,7 +11,7 @@ DSM geospatial data types for co-registration. The primary tasks are:
 * Converting all data types to a DSM - The registration modules operate on a
   gridded version of data being registered. Disorganized data is gridded into a
   DSM, voids are filled, and long wavelength elevation relief removed to allow
-  storage of local elevation changes in 8-bit grayscale. 
+  storage of local elevation changes in 8-bit grayscale.
 * Point cloud and normal vector generation - the fine registration module
   requires an array of 3D points and normal vectors for a point-to-plane ICP
   solution. These data are derived from the gridded DSM.
@@ -24,20 +24,21 @@ This module contains the following classes and methods:
 * Mesh - class for Mesh data
 * instantiate - method for auto-instantiating the appropriate class
 """
-import os
-import cv2
-import logging
-import trimesh
-import pdal
 import json
+import logging
+import os
 import tempfile
-import rasterio
-import rasterio.fill
-import numpy as np
+from typing import Optional
 from typing import TypeVar
+
+import codem.lib.resources as r
+import cv2
+import numpy as np
+import pdal
+import rasterio.fill
+import trimesh
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
-import codem.lib.resources as r
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class GeoData:
         self.logger = logging.getLogger(__name__)
         self.file = config["FND_FILE"] if fnd else config["AOI_FILE"]
         self.fnd = fnd
-        self.type = None
+        self.type: Optional[str] = None
         self.nodata = None
         self.dsm = None
         self.point_cloud = None
@@ -79,7 +80,7 @@ class GeoData:
         self.normal_vectors = None
         self.processed = False
         self.resolution = None
-        self.native_resolution = None
+        self.native_resolution = 0
         self.units_factor = 1.0
         self.units = None
         self.weak_size = config["DSM_WEAK_FILTER"]
@@ -126,7 +127,7 @@ class GeoData:
         if (np.array(self.transform) == np.identity(3).flatten()).all():
             self.logger.warning(f"{tag}-{self.type.upper()} has an identity transform.")
 
-    def _get_nodata_mask(self, dsm: np.array) -> np.array:
+    def _get_nodata_mask(self, dsm: np.ndarray) -> np.ndarray:
         """
         Generates a binary array indicating invalid data locations in the
         passed array. Invalid data are NaN and nodata values. A value of '1'
@@ -278,9 +279,6 @@ class GeoData:
             self._generate_vectors()
 
         self.processed = True
-
-
-G = TypeVar("G", bound=GeoData)
 
 
 class DSM(GeoData):
@@ -575,7 +573,7 @@ class Mesh(GeoData):
         self.native_resolution = resolution
 
 
-def instantiate(config: dict, fnd: bool) -> G:
+def instantiate(config: dict, fnd: bool) -> GeoData:
     """
     Factory method for auto-instantiating the appropriate data class.
 
@@ -588,7 +586,7 @@ def instantiate(config: dict, fnd: bool) -> G:
 
     Returns
     -------
-    G: Type[G]
+    Type[G]
         An instance of the appropriate child class of GeoData
     """
     file_path = config["FND_FILE"] if fnd else config["AOI_FILE"]

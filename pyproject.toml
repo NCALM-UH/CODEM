@@ -18,3 +18,25 @@ exclude = '''
   )/
 )
 '''
+
+[tool.mypy]
+python_version = 3.7
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = [
+  "cv2",
+  "enlighten",
+  "matplotlib.tri",
+  "pdal",
+  "rasterio",
+  "rasterio.crs",
+  "rasterio.enums",
+  "rasterio.fill",
+  "scipy",
+  "scipy.sparse",
+  "skimage",
+  "skimage.measure",
+  "trimesh"
+]
+ignore_missing_imports = true
