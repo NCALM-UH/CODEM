@@ -21,7 +21,7 @@ exclude = '''
 
 [tool.mypy]
 python_version = 3.7
-warn_return_any = false
+warn_return_any = true
 
 [[tool.mypy.overrides]]
 module = [

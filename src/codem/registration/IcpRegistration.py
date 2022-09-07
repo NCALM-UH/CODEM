@@ -10,14 +10,15 @@ This module contains the following class:
 
 * IcpRegistration: a class for point cloud to point cloud registration
 """
-import os
 import logging
-import numpy as np
+import os
 from typing import Tuple
-from scipy import spatial
-from scipy.sparse import diags
+
+import numpy as np
 from codem.preprocessing.preprocess import GeoData
 from codem.registration.DsmRegistration import DsmRegistration
+from scipy import spatial
+from scipy.sparse import diags
 
 
 class IcpRegistration:
@@ -61,8 +62,8 @@ class IcpRegistration:
         self.normals = fnd_obj.normal_vectors
         self.moving = aoi_obj.point_cloud
         self.resolution = aoi_obj.resolution
-        self.initial_transform = dsm_reg.registration_parameters["matrix"]
-        self.outlier_thresh = dsm_reg.registration_parameters["rmse_3d"]
+        self.initial_transform: np.ndarray = dsm_reg.registration_parameters["matrix"]
+        self.outlier_thresh: np.float64 = dsm_reg.registration_parameters["rmse_3d"]
         self.config = config
         self.residual_origins = []
         self.residual_vectors = []
@@ -202,7 +203,7 @@ class IcpRegistration:
         fixed: np.ndarray,
         normals: np.ndarray,
         moving: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> np.ndarray:
         """
         Generates residual vectors for visualization purposes to illustrate the
         approximate orthogonal difference between the foundation and AOI
@@ -216,11 +217,8 @@ class IcpRegistration:
         temp_normals = normals[include_fixed]
         temp_moving = moving[include_moving]
 
-        residuals = residuals = np.sum(
-            (temp_moving - temp_fixed) * temp_normals, axis=1
-        )
-        residual_vectors = (temp_normals.T * residuals).T
-
+        residuals = np.sum((temp_moving - temp_fixed) * temp_normals, axis=1)
+        residual_vectors: np.ndarray = (temp_normals.T * residuals).T
         return residual_vectors
 
     def _get_weights(
@@ -283,8 +281,8 @@ class IcpRegistration:
         """
         assert transform.shape == (4, 4), "Transformation matrix is an invalid shape"
         points = np.hstack((points, np.ones((points.shape[0], 1))))
-        transformed_points = (transform @ points.T).T
-        return transformed_points[:, 0:3]
+        transformed_points: np.ndarray = np.transpose(transform @ points.T)[:, 0:3]
+        return transformed_points
 
     def _scaled(
         self, fixed: np.ndarray, normals: np.ndarray, moving: np.ndarray, weights: diags
@@ -469,7 +467,6 @@ class IcpRegistration:
             "rmse_z": self.rmse_xyz[2],
             "rmse_3d": self.rmse_3d,
         }
-
         output_file = os.path.join(self.config["OUTPUT_DIR"], "registration.txt")
 
         self.logger.info(f"Saving ICP registration parameters to: {output_file}")

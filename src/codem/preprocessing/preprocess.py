@@ -144,6 +144,7 @@ class GeoData:
             The binary mask
         """
         nan_mask = np.isnan(dsm)
+        mask: np.ndarray
         if self.nodata is not None:
             dsm[nan_mask] = self.nodata
             mask = dsm != self.nodata
