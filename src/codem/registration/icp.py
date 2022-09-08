@@ -10,14 +10,23 @@ This module contains the following class:
 
 * IcpRegistration: a class for point cloud to point cloud registration
 """
-import os
+from __future__ import annotations
+
 import logging
-import numpy as np
+import os
+from typing import Any
+from typing import Dict
 from typing import Tuple
+from typing import TYPE_CHECKING
+
+import numpy as np
+from codem.preprocessing.preprocess import GeoData
+from codem.preprocessing.preprocess import RegistrationParameters
 from scipy import spatial
 from scipy.sparse import diags
-from codem.preprocessing.preprocess import GeoData
-from codem.registration.DsmRegistration import DsmRegistration
+
+if TYPE_CHECKING:
+    from codem.registration import DsmRegistration
 
 
 class IcpRegistration:
@@ -47,16 +56,14 @@ class IcpRegistration:
     _output
     """
 
-    def __init__(self, fnd_obj, aoi_obj, dsm_reg, config):
+    def __init__(
+        self,
+        fnd_obj: GeoData,
+        aoi_obj: GeoData,
+        dsm_reg: DsmRegistration,
+        config: Dict[str, Any],
+    ) -> None:
         self.logger = logging.getLogger(__name__)
-
-        assert isinstance(aoi_obj, GeoData) and isinstance(
-            fnd_obj, GeoData
-        ), "Inputs are not GeoData objects"
-        assert isinstance(
-            dsm_reg, DsmRegistration
-        ), "Input is not a DsmRegistration object"
-
         self.fixed = fnd_obj.point_cloud
         self.normals = fnd_obj.normal_vectors
         self.moving = aoi_obj.point_cloud
@@ -64,8 +71,8 @@ class IcpRegistration:
         self.initial_transform = dsm_reg.registration_parameters["matrix"]
         self.outlier_thresh = dsm_reg.registration_parameters["rmse_3d"]
         self.config = config
-        self.residual_origins = []
-        self.residual_vectors = []
+        self.residual_origins = np.empty((0, 0), np.double)
+        self.residual_vectors = np.empty((0, 0), np.double)
 
         assert (
             self.fixed.shape[1] == 3
@@ -79,7 +86,7 @@ class IcpRegistration:
             self.normals.shape == self.fixed.shape
         ), "Normal vector array must be same size as fixed points array."
 
-    def register(self):
+    def register(self) -> None:
         """
         Executes ICP by minimizing point-to-plane distances:
         * Find fixed point closest to each moving point
@@ -105,10 +112,10 @@ class IcpRegistration:
 
         cumulative_transform = np.eye(4)
         moving_transformed = moving
-        rmse = 0
-        previous_rmse = 1e-12
+        rmse = np.float64(0.0)
+        previous_rmse = np.float64(1e-12)
 
-        alpha = 2
+        alpha = 2.0
         beta = (self.resolution) / 2 + 0.5
         tau = 0.2
 
@@ -186,7 +193,6 @@ class IcpRegistration:
         assert (
             c > 0.67 and c < 1.5
         ), "Solved scale difference between foundation and AOI data exceeds 50%."
-
         if self.config["ICP_SAVE_RESIDUALS"]:
             self.residual_origins = self._apply_transform(self.moving, T)
             self.residual_vectors = self._residuals(
@@ -199,10 +205,10 @@ class IcpRegistration:
     def _residuals(
         self,
         fixed_tree: spatial.cKDTree,
-        fixed: np.array,
-        normals: np.array,
-        moving: np.array,
-    ) -> Tuple[np.array, np.array]:
+        fixed: np.ndarray,
+        normals: np.ndarray,
+        moving: np.ndarray,
+    ) -> np.ndarray:
         """
         Generates residual vectors for visualization purposes to illustrate the
         approximate orthogonal difference between the foundation and AOI
@@ -216,18 +222,15 @@ class IcpRegistration:
         temp_normals = normals[include_fixed]
         temp_moving = moving[include_moving]
 
-        residuals = residuals = np.sum(
-            (temp_moving - temp_fixed) * temp_normals, axis=1
-        )
-        residual_vectors = (temp_normals.T * residuals).T
-
+        residuals = np.sum((temp_moving - temp_fixed) * temp_normals, axis=1)
+        residual_vectors: np.ndarray = (temp_normals.T * residuals).T
         return residual_vectors
 
     def _get_weights(
         self,
-        fixed: np.array,
-        normals: np.array,
-        moving: np.array,
+        fixed: np.ndarray,
+        normals: np.ndarray,
+        moving: np.ndarray,
         alpha: float,
         beta: float,
     ) -> diags:
@@ -264,7 +267,7 @@ class IcpRegistration:
 
         return diags(weights)
 
-    def _apply_transform(self, points: np.array, transform: np.array) -> np.array:
+    def _apply_transform(self, points: np.ndarray, transform: np.ndarray) -> np.ndarray:
         """
         Applies a 4x4 homogeneous transformation matrix to an array of 3D point
         coordinates.
@@ -283,12 +286,12 @@ class IcpRegistration:
         """
         assert transform.shape == (4, 4), "Transformation matrix is an invalid shape"
         points = np.hstack((points, np.ones((points.shape[0], 1))))
-        transformed_points = (transform @ points.T).T
-        return transformed_points[:, 0:3]
+        transformed_points: np.ndarray = np.transpose(transform @ points.T)[:, 0:3]
+        return transformed_points
 
     def _scaled(
-        self, fixed: np.array, normals: np.array, moving: np.array, weights: diags
-    ) -> Tuple[np.array, float, float]:
+        self, fixed: np.ndarray, normals: np.ndarray, moving: np.ndarray, weights: diags
+    ) -> Tuple[np.ndarray, float, float]:
         """
         Solves a scaled rigid-body transformation (7-parameter) that minimizes
         the point to plane distances.
@@ -364,8 +367,8 @@ class IcpRegistration:
         return transform, euler, distance
 
     def _unscaled(
-        self, fixed: np.array, normals: np.array, moving: np.array, weights: diags
-    ) -> Tuple[np.array, float, float]:
+        self, fixed: np.ndarray, normals: np.ndarray, moving: np.ndarray, weights: diags
+    ) -> Tuple[np.ndarray, float, float]:
         """
         Solves a rigid-body transformation (6-parameter) that minimizes
         the point to plane distances.
@@ -440,7 +443,7 @@ class IcpRegistration:
 
         return transform, euler, distance
 
-    def _output(self):
+    def _output(self) -> None:
         """
         Stores registration results in a dictionary and writes them to a file
         """
@@ -454,7 +457,7 @@ class IcpRegistration:
         ty = X[1, 3]
         tz = X[2, 3]
 
-        self.registration_parameters = {
+        self.registration_parameters: RegistrationParameters = {
             "matrix": X,
             "omega": omega,
             "phi": phi,
@@ -469,7 +472,6 @@ class IcpRegistration:
             "rmse_z": self.rmse_xyz[2],
             "rmse_3d": self.rmse_3d,
         }
-
         output_file = os.path.join(self.config["OUTPUT_DIR"], "registration.txt")
 
         self.logger.info(f"Saving ICP registration parameters to: {output_file}")

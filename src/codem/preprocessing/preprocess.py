@@ -11,7 +11,7 @@ DSM geospatial data types for co-registration. The primary tasks are:
 * Converting all data types to a DSM - The registration modules operate on a
   gridded version of data being registered. Disorganized data is gridded into a
   DSM, voids are filled, and long wavelength elevation relief removed to allow
-  storage of local elevation changes in 8-bit grayscale. 
+  storage of local elevation changes in 8-bit grayscale.
 * Point cloud and normal vector generation - the fine registration module
   requires an array of 3D points and normal vectors for a point-to-plane ICP
   solution. These data are derived from the gridded DSM.
@@ -24,20 +24,39 @@ This module contains the following classes and methods:
 * Mesh - class for Mesh data
 * instantiate - method for auto-instantiating the appropriate class
 """
-import os
-import cv2
-import logging
-import trimesh
-import pdal
 import json
+import logging
+import os
 import tempfile
-import rasterio
-import rasterio.fill
-import numpy as np
+from typing import Optional
 from typing import TypeVar
+
+import codem.lib.resources as r
+import cv2
+import numpy as np
+import pdal
+import rasterio.fill
+import trimesh
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
-import codem.lib.resources as r
+from typing_extensions import TypedDict
+
+
+class RegistrationParameters(TypedDict):
+    matrix: np.ndarray
+    omega: np.float64
+    phi: np.float64
+    kappa: np.float64
+    trans_x: np.float64
+    trans_y: np.float64
+    trans_z: np.float64
+    scale: np.float64
+    n_pairs: np.int64
+    rmse_x: np.float64
+    rmse_y: np.float64
+    rmse_z: np.float64
+    rmse_3d: np.float64
+
 
 logger = logging.getLogger(__name__)
 
@@ -64,28 +83,28 @@ class GeoData:
     prep
     """
 
-    def __init__(self, config: dict, fnd: bool):
+    def __init__(self, config: dict, fnd: bool) -> None:
         self.logger = logging.getLogger(__name__)
         self.file = config["FND_FILE"] if fnd else config["AOI_FILE"]
         self.fnd = fnd
-        self.type = None
+        self.type = "undefined"
         self.nodata = None
-        self.dsm = None
-        self.point_cloud = None
+        self.dsm = np.empty((0, 0), dtype=np.double)
+        self.point_cloud = np.empty((0, 0), dtype=np.double)
         self.crs = None
-        self.transform = None
-        self.area_or_point = None
-        self.normed = None
-        self.normal_vectors = None
+        self.transform: Optional[rasterio.Affine] = None
+        self.area_or_point = "Undefined"
+        self.normed = np.empty((0, 0), dtype=np.uint8)
+        self.normal_vectors = np.empty((0, 0), dtype=np.double)
         self.processed = False
-        self.resolution = None
-        self.native_resolution = None
+        self.resolution = 0
+        self.native_resolution = 0
         self.units_factor = 1.0
         self.units = None
         self.weak_size = config["DSM_WEAK_FILTER"]
         self.strong_size = config["DSM_STRONG_FILTER"]
 
-    def _read_dsm(self, file_path: str):
+    def _read_dsm(self, file_path: str) -> None:
         """
         Reads in DSM data from a given file path.
 
@@ -100,8 +119,7 @@ class GeoData:
 
         tag = ["AOI", "Foundation"][int(self.fnd)]
 
-        if self.dsm is None:
-            # data = rasterio.open(file_path)
+        if self.dsm.size == 0:
             with rasterio.open(file_path) as data:
                 self.dsm = data.read(1)
                 self.transform = data.transform
@@ -119,14 +137,12 @@ class GeoData:
                         f"'AREA_OR_POINT' not supplied in {tag}-{self.type.upper()} - defaulting to 'Area'"
                     )
 
-            # data.close()
-
         if self.nodata is None:
             self.logger.info(f"{tag}-{self.type.upper()} does not have a nodata value.")
-        if (np.array(self.transform) == np.identity(3).flatten()).all():
+        if self.transform == rasterio.Affine.identity():
             self.logger.warning(f"{tag}-{self.type.upper()} has an identity transform.")
 
-    def _get_nodata_mask(self, dsm: np.array) -> np.array:
+    def _get_nodata_mask(self, dsm: np.ndarray) -> np.ndarray:
         """
         Generates a binary array indicating invalid data locations in the
         passed array. Invalid data are NaN and nodata values. A value of '1'
@@ -143,6 +159,7 @@ class GeoData:
             The binary mask
         """
         nan_mask = np.isnan(dsm)
+        mask: np.ndarray
         if self.nodata is not None:
             dsm[nan_mask] = self.nodata
             mask = dsm != self.nodata
@@ -151,7 +168,7 @@ class GeoData:
 
         return mask.astype(np.uint8)
 
-    def _infill(self):
+    def _infill(self) -> None:
         """
         Infills pixels flagged as invalid (via the nodata value or NaN values)
         via rasterio's inverse distance weighting interpolation. Necessary to
@@ -176,13 +193,17 @@ class GeoData:
         self.infilled = infilled
         self.nodata_mask = mask
 
-    def _normalize(self):
+    def _normalize(self) -> None:
         """
         Suppresses high frequency information and removes long wavelength
         topography with a bandpass filter. Normalizes the result to fit in an
         8-bit range. We scale the strong and weak filter sizes to convert them
         from object space distance to pixels.
         """
+        if self.transform is None:
+            raise RuntimeError(
+                "self.transform is not initialized, you run the prep() method?"
+            )
         scale = np.sqrt(self.transform[0] ** 2 + self.transform[1] ** 2)
         weak_filtered = cv2.GaussianBlur(self.infilled, (0, 0), self.weak_size / scale)
         strong_filtered = cv2.GaussianBlur(
@@ -194,16 +215,20 @@ class GeoData:
         high = np.percentile(bandpassed, 99)
         clipped = np.clip(bandpassed, low, high)
         normalized = (clipped - low) / (high - low)
-        quantized = np.uint8(255 * normalized)
+        quantized = (255 * normalized).astype(np.uint8)
         self.normed = quantized
 
-    def _dsm2pc(self):
+    def _dsm2pc(self) -> None:
         """
         Converts DSM data to point cloud data. If the DSM was saved with the
         AREA_OR_POINT tag set to 'Area', then we adjust the pixel values by 0.5
         pixel. This is because we assume the DSM elevation value to represent
         the elevation at the center of the pixel, not the upper left corner.
         """
+        if self.transform is None:
+            raise RuntimeError(
+                "self.transform needs to be set to a rasterio.Affine object"
+            )
         rows = np.arange(self.dsm.shape[0], dtype=np.float64)
         cols = np.arange(self.dsm.shape[1], dtype=np.float64)
         uu, vv = np.meshgrid(cols, rows)
@@ -223,7 +248,7 @@ class GeoData:
 
         self.point_cloud = xyz
 
-    def _generate_vectors(self):
+    def _generate_vectors(self) -> None:
         """
         Generates normal vectors, required for the ICP registration module, from
         the point cloud data. PDAL is used for speed.
@@ -257,13 +282,13 @@ class GeoData:
         ).T
         self.normal_vectors = filtered_normals
 
-    def _calculate_resolution(self):
+    def _calculate_resolution(self) -> None:
         ...
 
-    def _create_dsm(self):
+    def _create_dsm(self) -> None:
         ...
 
-    def prep(self):
+    def prep(self) -> None:
         """
         Prepares data for registration.
         """
@@ -280,20 +305,17 @@ class GeoData:
         self.processed = True
 
 
-G = TypeVar("G", bound=GeoData)
-
-
 class DSM(GeoData):
     """
     A class for storing and preparing Digital Surface Model (DSM) data.
     """
 
-    def __init__(self, config: dict, fnd: bool):
+    def __init__(self, config: dict, fnd: bool) -> None:
         super().__init__(config, fnd)
         self.type = "dsm"
         self._calculate_resolution()
 
-    def _create_dsm(self):
+    def _create_dsm(self) -> None:
         """
         Resamples the DSM to the registration pipeline resolution and applies
         a scale factor to convert to meters.
@@ -324,7 +346,6 @@ class DSM(GeoData):
             self.logger.info(f"No resampling required for {tag}-{self.type.upper()}")
             self.dsm = data.read(1)
             self.transform = data.transform
-
         # Scale the elevation values into meters
         mask = (self._get_nodata_mask(self.dsm)).astype(bool)
         self.dsm[mask] *= self.units_factor
@@ -353,10 +374,10 @@ class DSM(GeoData):
 
         if self.nodata is None:
             self.logger.info(f"{tag}-{self.type.upper()} does not have a nodata value.")
-        if (np.array(self.transform) == np.identity(3).flatten()).all():
+        if self.transform == rasterio.Affine.identity():
             self.logger.warning(f"{tag}-{self.type.upper()} has an identity transform.")
 
-    def _calculate_resolution(self):
+    def _calculate_resolution(self) -> None:
         """
         Calculates the pixel resolution of the DSM file.
         """
@@ -395,12 +416,12 @@ class PointCloud(GeoData):
     A class for storing and preparing Point Cloud data.
     """
 
-    def __init__(self, config: dict, fnd: bool):
+    def __init__(self, config: dict, fnd: bool) -> None:
         super().__init__(config, fnd)
         self.type = "pcloud"
         self._calculate_resolution()
 
-    def _create_dsm(self):
+    def _create_dsm(self) -> None:
         """
         Converts the point cloud to meters and rasters it to a DSM.
         """
@@ -438,15 +459,15 @@ class PointCloud(GeoData):
         os.close(file_handle)
         os.remove(tmp_file)
 
-    def _calculate_resolution(self):
+    def _calculate_resolution(self) -> None:
         """
         Calculates point cloud average point spacing.
         """
-        pipeline = [
+        pdal_pipeline = [
             self.file,
             {"type": "filters.hexbin", "edge_size": 25, "threshold": 1},
         ]
-        pipeline = pdal.Pipeline(json.dumps(pipeline))
+        pipeline = pdal.Pipeline(json.dumps(pdal_pipeline))
         pipeline.execute()
 
         tag = ["AOI", "Foundation"][int(self.fnd)]
@@ -483,12 +504,12 @@ class Mesh(GeoData):
     A class for storing and preparing Mesh data.
     """
 
-    def __init__(self, config: dict, fnd: bool):
+    def __init__(self, config: dict, fnd: bool) -> None:
         super().__init__(config, fnd)
         self.type = "mesh"
         self._calculate_resolution()
 
-    def _create_dsm(self):
+    def _create_dsm(self) -> None:
         """
         Converts mesh vertices to meters and rasters them to a DSM.
         """
@@ -539,15 +560,15 @@ class Mesh(GeoData):
         self._read_dsm("temp_dsm.tif")
         os.remove("temp_dsm.tif")
 
-    def _calculate_resolution(self):
+    def _calculate_resolution(self) -> None:
         """
         Calculates mesh average vertex spacing.
         """
-        pipeline = [
+        pdal_pipeline = [
             self.file,
             {"type": "filters.hexbin", "edge_size": 25, "threshold": 1},
         ]
-        pipeline = pdal.Pipeline(json.dumps(pipeline))
+        pipeline = pdal.Pipeline(json.dumps(pdal_pipeline))
         pipeline.execute()
         # metadata = json.loads(pipeline.metadata)["metadata"]
         metadata = pipeline.metadata["metadata"]
@@ -575,7 +596,7 @@ class Mesh(GeoData):
         self.native_resolution = resolution
 
 
-def instantiate(config: dict, fnd: bool) -> G:
+def instantiate(config: dict, fnd: bool) -> GeoData:
     """
     Factory method for auto-instantiating the appropriate data class.
 
@@ -588,7 +609,7 @@ def instantiate(config: dict, fnd: bool) -> G:
 
     Returns
     -------
-    G: Type[G]
+    Type[G]
         An instance of the appropriate child class of GeoData
     """
     file_path = config["FND_FILE"] if fnd else config["AOI_FILE"]
