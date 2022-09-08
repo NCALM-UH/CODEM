@@ -7,23 +7,27 @@ The main script for running a two-step co-registration. A feature-based
 global registration operating on DSMs is followed by a local ICP point
 to plane registration. Logs for each registration run can be found in
 the logs/ directory, and the outputs (text and image) can be found in
-the relevant run directory within outputs/. 
+the relevant run directory within outputs/.
 """
-from distutils.util import strtobool
-import os
-import time
-import yaml
 import argparse
-import pathlib
-import enlighten
-import logging
 import dataclasses
-import typing
+import logging
+import os
+import pathlib
+import time
+from typing import Any
+from typing import Dict
+from typing import Tuple
+
+import enlighten
+import yaml
 from codem.lib.log import Log
+from codem.preprocessing.preprocess import GeoData
 from codem.preprocessing.preprocess import instantiate
-from codem.registration import DsmRegistration as D
-from codem.registration import IcpRegistration as I
-from codem.registration import ApplyRegistration as A
+from codem.registration import ApplyRegistration
+from codem.registration import DsmRegistration
+from codem.registration import IcpRegistration
+from distutils.util import strtobool
 
 
 @dataclasses.dataclass
@@ -34,10 +38,10 @@ class CodemRunConfig:
     DSM_AKAZE_THRESHOLD: float = 0.0001
     DSM_LOWES_RATIO: float = 0.9
     DSM_RANSAC_MAX_ITER: int = 10000
-    DSM_RANSAC_THRESHOLD: float = 10.
+    DSM_RANSAC_THRESHOLD: float = 10.0
     DSM_SOLVE_SCALE: bool = True
-    DSM_STRONG_FILTER: float = 10.
-    DSM_WEAK_FILTER: float = 1.
+    DSM_STRONG_FILTER: float = 10.0
+    DSM_WEAK_FILTER: float = 1.0
     ICP_ANGLE_THRESHOLD: float = 0.001
     ICP_DISTANCE_THRESHOLD: float = 0.001
     ICP_MAX_ITER: int = 100
@@ -48,7 +52,7 @@ class CodemRunConfig:
     ICP_SAVE_RESIDUALS: bool = False
     OUTPUT_DIR: str = dataclasses.field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # set output directory
         current_time = time.localtime(time.time())
         timestamp = "%d-%02d-%02d_%02d-%02d-%02d" % (
@@ -59,9 +63,11 @@ class CodemRunConfig:
             current_time.tm_min,
             current_time.tm_sec,
         )
-        output_dir = os.path.join(os.path.dirname(self.AOI_FILE), f"registration_{timestamp}")
+        output_dir = os.path.join(
+            os.path.dirname(self.AOI_FILE), f"registration_{timestamp}"
+        )
         os.mkdir(output_dir)
-        self.OUTPUT_DIR  = os.path.abspath(output_dir)
+        self.OUTPUT_DIR = os.path.abspath(output_dir)
 
         # validate attributes
         if not os.path.exists(self.FND_FILE):
@@ -75,7 +81,9 @@ class CodemRunConfig:
         if self.DSM_LOWES_RATIO < 0.01 or self.DSM_LOWES_RATIO >= 1.0:
             raise ValueError("Lowes ratio must be between 0.01 and 1.0.")
         if self.DSM_RANSAC_MAX_ITER < 1:
-            raise ValueError("Maximum number of RANSAC iterations must be a positive integer.")
+            raise ValueError(
+                "Maximum number of RANSAC iterations must be a positive integer."
+            )
         if self.DSM_RANSAC_THRESHOLD <= 0:
             raise ValueError("RANSAC threshold must be a positive number.")
         if self.DSM_STRONG_FILTER <= 0:
@@ -83,14 +91,21 @@ class CodemRunConfig:
         if self.DSM_WEAK_FILTER <= 0:
             raise ValueError("DSM weak filter size must be greater than 0.")
         if self.ICP_ANGLE_THRESHOLD <= 0:
-            raise ValueError("ICP minimum angle convergence threshold must be greater than 0.")
+            raise ValueError(
+                "ICP minimum angle convergence threshold must be greater than 0."
+            )
         if self.ICP_DISTANCE_THRESHOLD <= 0:
-            raise ValueError("ICP minimum distance convergence threshold must be greater than 0.")
+            raise ValueError(
+                "ICP minimum distance convergence threshold must be greater than 0."
+            )
         if self.ICP_MAX_ITER < 1:
-            raise ValueError("Maximum number of ICP iterations must be a positive integer.")
+            raise ValueError(
+                "Maximum number of ICP iterations must be a positive integer."
+            )
         if self.ICP_RMSE_THRESHOLD <= 0:
-            raise ValueError("ICP minimum change in RMSE convergence threshold must be greater than 0.")
-
+            raise ValueError(
+                "ICP minimum change in RMSE convergence threshold must be greater than 0."
+            )
 
         # dump config
         config_path = os.path.join(self.OUTPUT_DIR, "config.yml")
@@ -105,11 +120,11 @@ class CodemRunConfig:
         return None
 
 
-def str2bool(v):
+def str2bool(v: str) -> bool:
     return bool(strtobool(v))
 
 
-def get_args():
+def get_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
         description="CODEM: Multi-Modal Digital Elevation Model Registration"
     )
@@ -227,30 +242,32 @@ def get_args():
     args = ap.parse_args()
     return args
 
-def create_config(args):
+
+def create_config(args: argparse.Namespace) -> Dict[str, Any]:
     config = CodemRunConfig(
         os.fsdecode(os.path.abspath(args.foundation_file)),
         os.fsdecode(os.path.abspath(args.aoi_file)),
-        MIN_RESOLUTION = float(args.min_resolution),
-        DSM_AKAZE_THRESHOLD = float(args.dsm_akaze_threshold),
-        DSM_LOWES_RATIO = float(args.dsm_lowes_ratio),
-        DSM_RANSAC_MAX_ITER = int(args.dsm_ransac_max_iter),
-        DSM_RANSAC_THRESHOLD = float(args.dsm_ransac_threshold),
-        DSM_SOLVE_SCALE = args.dsm_solve_scale,
-        DSM_STRONG_FILTER = float(args.dsm_strong_filter),
-        DSM_WEAK_FILTER = float(args.dsm_weak_filter),
-        ICP_ANGLE_THRESHOLD = float(args.icp_angle_threshold),
-        ICP_DISTANCE_THRESHOLD = float(args.icp_distance_threshold),
-        ICP_MAX_ITER = int(args.icp_max_iter),
-        ICP_RMSE_THRESHOLD = float(args.icp_rmse_threshold),
-        ICP_ROBUST = args.icp_robust,
-        ICP_SOLVE_SCALE = args.icp_solve_scale,
-        VERBOSE = args.verbose,
-        ICP_SAVE_RESIDUALS = False,
+        MIN_RESOLUTION=float(args.min_resolution),
+        DSM_AKAZE_THRESHOLD=float(args.dsm_akaze_threshold),
+        DSM_LOWES_RATIO=float(args.dsm_lowes_ratio),
+        DSM_RANSAC_MAX_ITER=int(args.dsm_ransac_max_iter),
+        DSM_RANSAC_THRESHOLD=float(args.dsm_ransac_threshold),
+        DSM_SOLVE_SCALE=args.dsm_solve_scale,
+        DSM_STRONG_FILTER=float(args.dsm_strong_filter),
+        DSM_WEAK_FILTER=float(args.dsm_weak_filter),
+        ICP_ANGLE_THRESHOLD=float(args.icp_angle_threshold),
+        ICP_DISTANCE_THRESHOLD=float(args.icp_distance_threshold),
+        ICP_MAX_ITER=int(args.icp_max_iter),
+        ICP_RMSE_THRESHOLD=float(args.icp_rmse_threshold),
+        ICP_ROBUST=args.icp_robust,
+        ICP_SOLVE_SCALE=args.icp_solve_scale,
+        VERBOSE=args.verbose,
+        ICP_SAVE_RESIDUALS=False,
     )
     return dataclasses.asdict(config)
 
-def run_console(config):
+
+def run_console(config: Dict[str, Any]) -> None:
     """
     Preprocesses and registers the provided data
 
@@ -319,41 +336,53 @@ def run_console(config):
     run_bar.update(5, force=True)
 
 
-def preprocess(config: typing.Dict[str, typing.Any]) -> typing.Tuple[typing.Any, typing.Any]:
+def preprocess(config: Dict[str, Any]) -> Tuple[GeoData, GeoData]:
     fnd_obj = instantiate(config, fnd=True)
     aoi_obj = instantiate(config, fnd=False)
     resolution = max(
-        fnd_obj.native_resolution,
-        aoi_obj.native_resolution,
-        config["MIN_RESOLUTION"]
-    ) 
+        fnd_obj.native_resolution, aoi_obj.native_resolution, config["MIN_RESOLUTION"]
+    )
     fnd_obj.resolution = aoi_obj.resolution = resolution
-    return (fnd_obj, aoi_obj)
+    return fnd_obj, aoi_obj
 
-def coarse_registration(fnd_obj, aoi_obj, config):
-    dsm_reg = D.DsmRegistration(fnd_obj, aoi_obj, config)
+
+def coarse_registration(
+    fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]
+) -> DsmRegistration:
+    dsm_reg = DsmRegistration(fnd_obj, aoi_obj, config)
     dsm_reg.register()
     return dsm_reg
 
-def fine_registration(fnd_obj, aoi_obj, dsm_reg, config):
-    icp_reg = I.IcpRegistration(fnd_obj, aoi_obj, dsm_reg, config)
+
+def fine_registration(
+    fnd_obj: GeoData, aoi_obj: GeoData, dsm_reg: DsmRegistration, config: Dict[str, Any]
+) -> IcpRegistration:
+    icp_reg = IcpRegistration(fnd_obj, aoi_obj, dsm_reg, config)
     icp_reg.register()
     return icp_reg
 
-def apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format=None) -> str:
-    app_reg = A.ApplyRegistration(
+
+def apply_registration(
+    fnd_obj: GeoData,
+    aoi_obj: GeoData,
+    icp_reg: IcpRegistration,
+    config: Dict[str, Any],
+    output_format: str = None,
+) -> str:
+    app_reg = ApplyRegistration(
         fnd_obj,
         aoi_obj,
         icp_reg.registration_parameters,
         icp_reg.residual_vectors,
         icp_reg.residual_origins,
         config,
-        output_format
+        output_format,
     )
     app_reg.apply()
     return app_reg.out_name
 
-def main():
+
+def main() -> None:
     args = get_args()
     config = create_config(args)
     Log(config)

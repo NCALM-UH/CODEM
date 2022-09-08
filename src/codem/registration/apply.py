@@ -17,6 +17,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from typing import TYPE_CHECKING
 from typing import Union
 
 import codem.lib.resources as r
@@ -24,6 +25,8 @@ import numpy as np
 import pdal
 import rasterio
 import trimesh
+from codem.preprocessing.preprocess import GeoData
+from codem.preprocessing.preprocess import RegistrationParameters
 from matplotlib.tri import LinearTriInterpolator
 from matplotlib.tri import Triangulation
 from numpy.lib import recfunctions as rfn
@@ -39,7 +42,7 @@ class ApplyRegistration:
         The foundation data object
     aoi_obj: GeoData object
         The area of interest data object
-    registration_parameters: Dict[str, np.ndarray]
+    registration_parameters:
         Registration parameters from IcpRegistration
     residual_vectors: np.array
         Point to plane direction used in final ICP iteration
@@ -62,14 +65,14 @@ class ApplyRegistration:
 
     def __init__(
         self,
-        fnd_obj,
-        aoi_obj,
-        registration_parameters: np.ndarray,
+        fnd_obj: GeoData,
+        aoi_obj: GeoData,
+        registration_parameters: RegistrationParameters,
         residual_vectors: np.ndarray,
         residual_origins: np.ndarray,
         config: Dict[str, Any],
         output_format: Optional[str],
-    ):
+    ) -> None:
         self.logger = logging.getLogger(__name__)
         self.fnd_crs = fnd_obj.crs
         self.fnd_units_factor = fnd_obj.units_factor
@@ -99,8 +102,8 @@ class ApplyRegistration:
 
         Returns
         --------
-        registration_transformation: np.array or dict
-            np.array : Registration matrix
+        registration_transformation:
+            np.ndarray : Registration matrix
             dict     : PDAL filters.transformation stage with SRS overide if available
         """
         aoi_to_meters = np.eye(4) * self.aoi_units_factor
@@ -132,7 +135,7 @@ class ApplyRegistration:
                 }
             return registration_transformation
 
-    def apply(self):
+    def apply(self) -> None:
         """
         Call the appropriate registration function depending on data type
         """
@@ -143,7 +146,7 @@ class ApplyRegistration:
         if os.path.splitext(self.aoi_file)[-1] in r.pcloud_filetypes:
             self._apply_pointcloud()
 
-    def _apply_dsm(self):
+    def _apply_dsm(self) -> None:
         """
         Applies the registration transformation to a dsm file.
         We do not simply edit the transform of the DSM file because that is
@@ -270,7 +273,7 @@ class ApplyRegistration:
                 f"ICP residuals have been computed for each registered AOI-DSM cell and saved to: {out_name_res}"
             )
 
-    def _apply_mesh(self):
+    def _apply_mesh(self) -> None:
         """
         Applies the registration transformation to a mesh file. No attempt is
         made to write the coordinate reference system since mesh files typically
@@ -284,7 +287,7 @@ class ApplyRegistration:
         root, ext = os.path.splitext(self.aoi_file)
 
         if ext == ".obj":
-            base_name = os.split(root)[0]
+            base_name = os.path.basename(root)
             mesh.visual.material.name = base_name
 
         mesh.export(self.out_name)
@@ -322,7 +325,7 @@ class ApplyRegistration:
                 f"ICP residuals have been computed for each registered AOI-MESH vertex and saved to: {out_name_res}"
             )
 
-    def _apply_pointcloud(self):
+    def _apply_pointcloud(self) -> None:
         """
         Applies the registration transformation to a point cloud file.
         """
