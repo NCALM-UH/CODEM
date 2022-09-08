@@ -23,6 +23,8 @@ exclude = '''
 python_version = 3.7
 warn_return_any = true
 disallow_untyped_defs = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
 module = [
