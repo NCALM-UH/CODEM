@@ -15,15 +15,18 @@ This module contains the following classes:
 * Scaled3dSimilarityTransform: a class for solving the 7-parameter
   transformation (includes a scale factor) between two sets of 3D points.
 """
-import os
-import cv2
 import logging
-import numpy as np
-
-from skimage.measure import ransac
-from rasterio import Affine
+import os
+from typing import Any
+from typing import Dict
 from typing import Tuple
+
+import cv2
+import numpy as np
+import numpy.typing as npt
 from codem.preprocessing.preprocess import GeoData
+from rasterio import Affine
+from skimage.measure import ransac
 
 
 class DsmRegistration:
@@ -52,20 +55,19 @@ class DsmRegistration:
     _output
     """
 
-    def __init__(self, fnd_obj, aoi_obj, config):
+    def __init__(
+        self, fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]
+    ) -> None:
         self.logger = logging.getLogger(__name__)
         self.config = config
         self.fnd_obj = fnd_obj
         self.aoi_obj = aoi_obj
 
-        assert isinstance(aoi_obj, GeoData) and isinstance(
-            fnd_obj, GeoData
-        ), "Inputs are not GeoData objects"
         assert (
             aoi_obj.processed and fnd_obj.processed
         ), "Input data has not been preprocessed"
 
-    def register(self):
+    def register(self) -> None:
         """
         Performs DSM co-registration via the following steps:
         * Extract features from foundation and AOI DSMs
@@ -78,7 +80,7 @@ class DsmRegistration:
         """
         self.logger.info("Solving DSM feature registration.")
 
-        (self.fnd_kp, self.fnd_desc) = self._get_kp(
+        self.fnd_kp, self.fnd_desc = self._get_kp(
             self.fnd_obj.normed, self.fnd_obj.nodata_mask
         )
         self.logger.debug(f"{len(self.fnd_kp)} keypoints detected in foundation")
@@ -99,7 +101,9 @@ class DsmRegistration:
         self._get_rmse()
         self._output()
 
-    def _get_kp(self, img: np.array, mask: np.array) -> Tuple[list, np.array]:
+    def _get_kp(
+        self, img: np.ndarray, mask: np.ndarray
+    ) -> Tuple[Tuple[cv2.KeyPoint, ...], np.ndarray]:
         """
         Extracts AKAZE features, in the form of keypoints and descriptors,
         from an 8-bit grayscale image.
@@ -113,7 +117,7 @@ class DsmRegistration:
 
         Returns
         ----------
-        kp: list
+        kp: tuple(cv2.KeyPoint,...)
             OpenCV keypoints
         desc: np.array
             OpenCV AKAZE descriptors
@@ -122,7 +126,7 @@ class DsmRegistration:
         kp, desc = detector.detectAndCompute(img, np.ones(mask.shape, dtype=np.uint8))
         return kp, desc
 
-    def _get_putative(self):
+    def _get_putative(self) -> None:
         """
         Identifies putative matches for DSM co-registration via a nearest
         neighbor search in descriptor space. When very large numbers of
@@ -132,7 +136,7 @@ class DsmRegistration:
         * https://docs.opencv.org/master/dc/dc3/tutorial_py_matcher.html
         * https://luckytaylor.top/modules/flann/doc/flann_fast_approximate_nearest_neighbor_search.html
         """
-        if self.aoi_desc.shape[0] > 2 ** 17 or self.fnd_desc.shape[0] > 2 ** 17:
+        if self.aoi_desc.shape[0] > 2**17 or self.fnd_desc.shape[0] > 2**17:
             FLANN_INDEX_LSH = 6
             index_params = dict(
                 algorithm=FLANN_INDEX_LSH,
@@ -140,8 +144,7 @@ class DsmRegistration:
                 key_size=12,  # 20
                 multi_probe_level=1,  # 2
             )
-            search_params = dict()
-            desc_matcher = cv2.FlannBasedMatcher(index_params, search_params)
+            desc_matcher = cv2.FlannBasedMatcher(index_params, dict())
         else:
             desc_matcher = cv2.DescriptorMatcher_create(
                 cv2.DescriptorMatcher_BRUTEFORCE_HAMMING
@@ -161,7 +164,7 @@ class DsmRegistration:
 
         self.putative_matches = good_matches
 
-    def _filter_putative(self):
+    def _filter_putative(self) -> None:
         """
         Filters putative matches via conformance to a 3D similarity transform.
         Note that the fnd_uv and aoi_uv coordinates are relative to OpenCV's
@@ -169,8 +172,14 @@ class DsmRegistration:
         https://github.com/opencv/opencv/commit/e646f9d2f1b276991a59edf01bc87dcdf28e2b8f
         """
         # Get 2D image space coords of putative keypoint matches
-        fnd_uv = np.float32([self.fnd_kp[m.trainIdx].pt for m in self.putative_matches])
-        aoi_uv = np.float32([self.aoi_kp[m.queryIdx].pt for m in self.putative_matches])
+        fnd_uv = np.array(
+            [self.fnd_kp[m.trainIdx].pt for m in self.putative_matches],
+            dtype=np.float32,
+        )
+        aoi_uv = np.array(
+            [self.aoi_kp[m.queryIdx].pt for m in self.putative_matches],
+            dtype=np.float32,
+        )
 
         # Get 3D object space coords of putative keypoint matches
         fnd_xyz = self._get_geo_coords(
@@ -207,7 +216,7 @@ class DsmRegistration:
         self.logger.debug(f"{np.sum(inliers)} keypoint matches found.")
         assert np.sum(inliers) >= 4, "Less than four keypoint matches found."
 
-        T = model.transform
+        T: np.ndarray = model.transform
         c = np.sqrt(T[0, 0] ** 2 + T[1, 0] ** 2 + T[2, 0] ** 2)
         assert (
             c > 0.67 and c < 1.5
@@ -218,14 +227,20 @@ class DsmRegistration:
         self.fnd_inliers_xyz = fnd_xyz[inliers]
         self.aoi_inliers_xyz = aoi_xyz[inliers]
 
-    def _save_match_img(self):
+    def _save_match_img(self) -> None:
         """
         Save image of matched features with connecting lines on the
         foundation and AOI DSM images. The outline of the transformed AOI
         boundary is also plotted on the foundation DSM image.
         """
+        if self.fnd_obj.transform is None:
+            raise RuntimeError(
+                "Foundation Object transform has not been set, did you run the prep() method?"
+            )
         h, w = self.aoi_obj.normed.shape
-        aoi_uv = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]])
+        aoi_uv = np.array(
+            [[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]], dtype=np.float32
+        )
 
         aoi_xyz = self._get_geo_coords(
             aoi_uv,
@@ -246,7 +261,7 @@ class DsmRegistration:
         fnd_prep = self.fnd_obj.normed.copy()
         fnd_prep = cv2.polylines(
             fnd_prep,
-            np.int32([fnd_uv]),
+            np.expand_dims(fnd_uv, axis=0).astype(np.int32),
             isClosed=True,
             color=(255, 0, 0),
             thickness=2,
@@ -272,8 +287,8 @@ class DsmRegistration:
         cv2.imwrite(output_file, kp_lines)
 
     def _get_geo_coords(
-        self, uv: np.array, transform: Affine, area_or_point: str, dsm: np.array
-    ) -> np.array:
+        self, uv: np.ndarray, transform: Affine, area_or_point: str, dsm: np.ndarray
+    ) -> np.ndarray:
         """
         Converts image space coordinates to object space coordinates. The passed
         uv coordinates must be relative to an origin at the center of the upper
@@ -317,13 +332,13 @@ class DsmRegistration:
             temp = transform * (cr)
             xy.append([temp[0], temp[1]])
 
-        z = np.asarray(z)
-        xy = np.asarray(xy)
-        xyz = np.vstack((xy.T, z)).T
+        z_ = np.asarray(z)
+        xy_ = np.asarray(xy)
+        xyz = np.vstack((xy_.T, z_)).T
 
         return xyz
 
-    def _get_rmse(self):
+    def _get_rmse(self) -> None:
         """
         Calculates root mean squared error between the geospatial locations of
         the matched foundation and aoi features used in the registration.
@@ -341,7 +356,7 @@ class DsmRegistration:
         )
         self.rmse_3d = np.sqrt(np.sum(self.rmse_xyz**2))
 
-    def _output(self):
+    def _output(self) -> None:
         """
         Stores registration results in a dictionary and writes them to a file
         """
@@ -407,10 +422,10 @@ class Scaled3dSimilarityTransform:
     from: https://github.com/scikit-image/scikit-image/blob/main/skimage/transform/_geometric.py
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.solve_scale = True
 
-    def estimate(self, src: np.array, dst: np.array) -> bool:
+    def estimate(self, src: np.ndarray, dst: np.ndarray) -> bool:
         """
         Function to estimate the least squares transformation between the source
         (src) and destination (dst) 3D point pairs.
@@ -431,7 +446,7 @@ class Scaled3dSimilarityTransform:
         self.transform = self._umeyama(src, dst, self.solve_scale)
         return True
 
-    def residuals(self, src: np.array, dst: np.array) -> np.array:
+    def residuals(self, src: np.ndarray, dst: np.ndarray) -> np.ndarray:
         """
         Function to compute residual distance between each point pair after
         registration
@@ -451,9 +466,12 @@ class Scaled3dSimilarityTransform:
         src = np.hstack((src, np.ones((src.shape[0], 1))))
         src_transformed = (self.transform @ src.T).T
         src_transformed = src_transformed[:, 0:3]
-        return np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
+        residuals: np.ndarray = np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
+        return residuals
 
-    def _umeyama(self, src: np.array, dst: np.array, estimate_scale: bool) -> np.array:
+    def _umeyama(
+        self, src: np.ndarray, dst: np.ndarray, estimate_scale: bool
+    ) -> np.ndarray:
         """
         Estimate N-D similarity transformation with or without scaling.
 
@@ -497,14 +515,14 @@ class Scaled3dSimilarityTransform:
         if np.linalg.det(A) < 0:
             d[dim - 1] = -1
 
-        T = np.eye(dim + 1, dtype=np.double)
+        T: np.ndarray = np.eye(dim + 1, dtype=np.double)
 
         U, S, V = np.linalg.svd(A)
 
         # Eq. (40) and (43).
         rank = np.linalg.matrix_rank(A)
         if rank == 0:
-            return np.nan * T
+            return np.full_like(T, np.nan)
         elif rank == dim - 1:
             if np.linalg.det(U) * np.linalg.det(V) > 0:
                 T[:dim, :dim] = U @ V
@@ -524,7 +542,6 @@ class Scaled3dSimilarityTransform:
 
         T[:dim, dim] = dst_mean - scale * (T[:dim, :dim] @ src_mean.T)
         T[:dim, :dim] *= scale
-
         return T
 
 
@@ -535,10 +552,10 @@ class Unscaled3dSimilarityTransform:
     from: https://github.com/scikit-image/scikit-image/blob/main/skimage/transform/_geometric.py
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.solve_scale = False
 
-    def estimate(self, src: np.array, dst: np.array) -> bool:
+    def estimate(self, src: np.ndarray, dst: np.ndarray) -> bool:
         """
         Function to estimate the least squares transformation between the source
         (src) and destination (dst) 3D point pairs.
@@ -559,7 +576,7 @@ class Unscaled3dSimilarityTransform:
         self.transform = self._umeyama(src, dst, self.solve_scale)
         return True
 
-    def residuals(self, src: np.array, dst: np.array) -> np.array:
+    def residuals(self, src: np.ndarray, dst: np.ndarray) -> np.ndarray:
         """
         Function to compute residual distance between each point pair after
         registration
@@ -579,9 +596,12 @@ class Unscaled3dSimilarityTransform:
         src = np.hstack((src, np.ones((src.shape[0], 1))))
         src_transformed = (self.transform @ src.T).T
         src_transformed = src_transformed[:, 0:3]
-        return np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
+        residuals: np.ndarray = np.sqrt(np.sum((src_transformed - dst) ** 2, axis=1))
+        return residuals
 
-    def _umeyama(self, src: np.array, dst: np.array, estimate_scale: bool) -> np.array:
+    def _umeyama(
+        self, src: np.ndarray, dst: np.ndarray, estimate_scale: bool
+    ) -> np.ndarray:
         """
         Estimate N-D similarity transformation with or without scaling.
 
@@ -625,14 +645,14 @@ class Unscaled3dSimilarityTransform:
         if np.linalg.det(A) < 0:
             d[dim - 1] = -1
 
-        T = np.eye(dim + 1, dtype=np.double)
+        T: np.ndarray = np.eye(dim + 1, dtype=np.double)
 
         U, S, V = np.linalg.svd(A)
 
         # Eq. (40) and (43).
         rank = np.linalg.matrix_rank(A)
         if rank == 0:
-            return np.nan * T
+            return np.full_like(T, np.nan)
         elif rank == dim - 1:
             if np.linalg.det(U) * np.linalg.det(V) > 0:
                 T[:dim, :dim] = U @ V

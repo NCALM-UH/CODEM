@@ -10,18 +10,26 @@ This module contains the following class:
 * ApplyRegistration: a class for applying registration results to the original
   unregistered AOI data file
 """
-import os
-from typing import Union
 import json
 import logging
+import os
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
+
+import codem.lib.resources as r
+import numpy as np
 import pdal
 import rasterio
 import trimesh
-import numpy as np
-import codem.lib.resources as r
-from typing import Tuple, Dict, Optional, Any
+from codem.preprocessing.preprocess import GeoData
+from codem.preprocessing.preprocess import RegistrationParameters
+from matplotlib.tri import LinearTriInterpolator
+from matplotlib.tri import Triangulation
 from numpy.lib import recfunctions as rfn
-from matplotlib.tri import Triangulation, LinearTriInterpolator
 
 
 class ApplyRegistration:
@@ -34,7 +42,7 @@ class ApplyRegistration:
         The foundation data object
     aoi_obj: GeoData object
         The area of interest data object
-    registration_parameters: np.array
+    registration_parameters:
         Registration parameters from IcpRegistration
     residual_vectors: np.array
         Point to plane direction used in final ICP iteration
@@ -57,14 +65,14 @@ class ApplyRegistration:
 
     def __init__(
         self,
-        fnd_obj,
-        aoi_obj,
-        registration_parameters: np.array,
-        residual_vectors: np.array,
-        residual_origins: np.array,
+        fnd_obj: GeoData,
+        aoi_obj: GeoData,
+        registration_parameters: RegistrationParameters,
+        residual_vectors: np.ndarray,
+        residual_origins: np.ndarray,
         config: Dict[str, Any],
-        output_format: Optional[str]
-    ):
+        output_format: Optional[str],
+    ) -> None:
         self.logger = logging.getLogger(__name__)
         self.fnd_crs = fnd_obj.crs
         self.fnd_units_factor = fnd_obj.units_factor
@@ -79,15 +87,14 @@ class ApplyRegistration:
         self.residual_origins = residual_origins
         self.config = config
 
-
         in_name = os.path.basename(self.aoi_file)
         root, ext = os.path.splitext(in_name)
         if output_format is not None:
             ext = f".{output_format}"
         out_name = root + "_registered" + ext
-        self.out_name = os.path.join(self.config["OUTPUT_DIR"], out_name)
+        self.out_name: str = os.path.join(self.config["OUTPUT_DIR"], out_name)
 
-    def get_registration_transformation(self) -> Union[np.array, dict]:
+    def get_registration_transformation(self) -> Union[np.ndarray, Dict[str, str]]:
         """
         Generates the transformation from the AOI to FND coordinate system.
         The transformation accommodates linear unit differences and the solved
@@ -95,8 +102,8 @@ class ApplyRegistration:
 
         Returns
         --------
-        registration_transformation: np.array or dict
-            np.array : Registration matrix
+        registration_transformation:
+            np.ndarray : Registration matrix
             dict     : PDAL filters.transformation stage with SRS overide if available
         """
         aoi_to_meters = np.eye(4) * self.aoi_units_factor
@@ -104,15 +111,17 @@ class ApplyRegistration:
         meters_to_fnd = np.eye(4) * (1 / self.fnd_units_factor)
         meters_to_fnd[3, 3] = 1
 
-        aoi_to_fnd_array = meters_to_fnd @ self.registration_transform @ aoi_to_meters
-        aoi_to_fnd_string = np.reshape(aoi_to_fnd_array, (1, 16))
-        aoi_to_fnd_string = [" ".join(item) for item in aoi_to_fnd_string.astype(str)][
-            0
-        ]
+        aoi_to_fnd_array: np.ndarray = (
+            meters_to_fnd @ self.registration_transform @ aoi_to_meters
+        )
 
         if self.aoi_type == "mesh":
             return aoi_to_fnd_array
         else:
+            aoi_to_fnd_array = np.reshape(aoi_to_fnd_array, (1, 16))
+            aoi_to_fnd_string = [
+                " ".join(item) for item in aoi_to_fnd_array.astype(str)
+            ][0]
             if self.fnd_crs is not None:
                 registration_transformation = {
                     "type": "filters.transformation",
@@ -126,7 +135,7 @@ class ApplyRegistration:
                 }
             return registration_transformation
 
-    def apply(self):
+    def apply(self) -> None:
         """
         Call the appropriate registration function depending on data type
         """
@@ -137,7 +146,7 @@ class ApplyRegistration:
         if os.path.splitext(self.aoi_file)[-1] in r.pcloud_filetypes:
             self._apply_pointcloud()
 
-    def _apply_dsm(self):
+    def _apply_dsm(self) -> None:
         """
         Applies the registration transformation to a dsm file.
         We do not simply edit the transform of the DSM file because that is
@@ -264,7 +273,7 @@ class ApplyRegistration:
                 f"ICP residuals have been computed for each registered AOI-DSM cell and saved to: {out_name_res}"
             )
 
-    def _apply_mesh(self):
+    def _apply_mesh(self) -> None:
         """
         Applies the registration transformation to a mesh file. No attempt is
         made to write the coordinate reference system since mesh files typically
@@ -278,7 +287,7 @@ class ApplyRegistration:
         root, ext = os.path.splitext(self.aoi_file)
 
         if ext == ".obj":
-            base_name = os.split(root)[0]
+            base_name = os.path.basename(root)
             mesh.visual.material.name = base_name
 
         mesh.export(self.out_name)
@@ -316,7 +325,7 @@ class ApplyRegistration:
                 f"ICP residuals have been computed for each registered AOI-MESH vertex and saved to: {out_name_res}"
             )
 
-    def _apply_pointcloud(self):
+    def _apply_pointcloud(self) -> None:
         """
         Applies the registration transformation to a point cloud file.
         """
@@ -390,8 +399,8 @@ class ApplyRegistration:
             )
 
     def _interpolate_residuals(
-        self, x: np.array, y: np.array
-    ) -> Tuple[np.array, np.array, np.array, np.array, np.array]:
+        self, x: np.ndarray, y: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Interpolate ICP residuals at registered AOI x,y locations. The
         registration is solved using a gridded set of points, while the AOI
