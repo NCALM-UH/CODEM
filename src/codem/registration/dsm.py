@@ -17,6 +17,8 @@ This module contains the following classes:
 """
 import logging
 import os
+from typing import Any
+from typing import Dict
 from typing import Tuple
 
 import cv2
@@ -53,20 +55,19 @@ class DsmRegistration:
     _output
     """
 
-    def __init__(self, fnd_obj, aoi_obj, config):
+    def __init__(
+        self, fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]
+    ) -> None:
         self.logger = logging.getLogger(__name__)
         self.config = config
         self.fnd_obj = fnd_obj
         self.aoi_obj = aoi_obj
 
-        assert isinstance(aoi_obj, GeoData) and isinstance(
-            fnd_obj, GeoData
-        ), "Inputs are not GeoData objects"
         assert (
             aoi_obj.processed and fnd_obj.processed
         ), "Input data has not been preprocessed"
 
-    def register(self):
+    def register(self) -> None:
         """
         Performs DSM co-registration via the following steps:
         * Extract features from foundation and AOI DSMs
@@ -79,7 +80,7 @@ class DsmRegistration:
         """
         self.logger.info("Solving DSM feature registration.")
 
-        (self.fnd_kp, self.fnd_desc) = self._get_kp(
+        self.fnd_kp, self.fnd_desc = self._get_kp(
             self.fnd_obj.normed, self.fnd_obj.nodata_mask
         )
         self.logger.debug(f"{len(self.fnd_kp)} keypoints detected in foundation")
@@ -100,7 +101,9 @@ class DsmRegistration:
         self._get_rmse()
         self._output()
 
-    def _get_kp(self, img: np.ndarray, mask: np.ndarray) -> Tuple[list, np.ndarray]:
+    def _get_kp(
+        self, img: np.ndarray, mask: np.ndarray
+    ) -> Tuple[Tuple[cv2.KeyPoint, ...], np.ndarray]:
         """
         Extracts AKAZE features, in the form of keypoints and descriptors,
         from an 8-bit grayscale image.
@@ -114,7 +117,7 @@ class DsmRegistration:
 
         Returns
         ----------
-        kp: list
+        kp: tuple(cv2.KeyPoint,...)
             OpenCV keypoints
         desc: np.array
             OpenCV AKAZE descriptors
@@ -123,7 +126,7 @@ class DsmRegistration:
         kp, desc = detector.detectAndCompute(img, np.ones(mask.shape, dtype=np.uint8))
         return kp, desc
 
-    def _get_putative(self):
+    def _get_putative(self) -> None:
         """
         Identifies putative matches for DSM co-registration via a nearest
         neighbor search in descriptor space. When very large numbers of
@@ -141,8 +144,7 @@ class DsmRegistration:
                 key_size=12,  # 20
                 multi_probe_level=1,  # 2
             )
-            search_params = dict()
-            desc_matcher = cv2.FlannBasedMatcher(index_params, search_params)
+            desc_matcher = cv2.FlannBasedMatcher(index_params, dict())
         else:
             desc_matcher = cv2.DescriptorMatcher_create(
                 cv2.DescriptorMatcher_BRUTEFORCE_HAMMING
@@ -162,7 +164,7 @@ class DsmRegistration:
 
         self.putative_matches = good_matches
 
-    def _filter_putative(self):
+    def _filter_putative(self) -> None:
         """
         Filters putative matches via conformance to a 3D similarity transform.
         Note that the fnd_uv and aoi_uv coordinates are relative to OpenCV's
@@ -170,8 +172,14 @@ class DsmRegistration:
         https://github.com/opencv/opencv/commit/e646f9d2f1b276991a59edf01bc87dcdf28e2b8f
         """
         # Get 2D image space coords of putative keypoint matches
-        fnd_uv = np.float32([self.fnd_kp[m.trainIdx].pt for m in self.putative_matches])
-        aoi_uv = np.float32([self.aoi_kp[m.queryIdx].pt for m in self.putative_matches])
+        fnd_uv = np.array(
+            [self.fnd_kp[m.trainIdx].pt for m in self.putative_matches],
+            dtype=np.float32,
+        )
+        aoi_uv = np.array(
+            [self.aoi_kp[m.queryIdx].pt for m in self.putative_matches],
+            dtype=np.float32,
+        )
 
         # Get 3D object space coords of putative keypoint matches
         fnd_xyz = self._get_geo_coords(
@@ -219,14 +227,20 @@ class DsmRegistration:
         self.fnd_inliers_xyz = fnd_xyz[inliers]
         self.aoi_inliers_xyz = aoi_xyz[inliers]
 
-    def _save_match_img(self):
+    def _save_match_img(self) -> None:
         """
         Save image of matched features with connecting lines on the
         foundation and AOI DSM images. The outline of the transformed AOI
         boundary is also plotted on the foundation DSM image.
         """
+        if self.fnd_obj.transform is None:
+            raise RuntimeError(
+                "Foundation Object transform has not been set, did you run the prep() method?"
+            )
         h, w = self.aoi_obj.normed.shape
-        aoi_uv = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]])
+        aoi_uv = np.array(
+            [[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]], dtype=np.float32
+        )
 
         aoi_xyz = self._get_geo_coords(
             aoi_uv,
@@ -247,7 +261,7 @@ class DsmRegistration:
         fnd_prep = self.fnd_obj.normed.copy()
         fnd_prep = cv2.polylines(
             fnd_prep,
-            np.int32([fnd_uv]),
+            np.expand_dims(fnd_uv, axis=0).astype(np.int32),
             isClosed=True,
             color=(255, 0, 0),
             thickness=2,
@@ -324,7 +338,7 @@ class DsmRegistration:
 
         return xyz
 
-    def _get_rmse(self):
+    def _get_rmse(self) -> None:
         """
         Calculates root mean squared error between the geospatial locations of
         the matched foundation and aoi features used in the registration.
@@ -342,7 +356,7 @@ class DsmRegistration:
         )
         self.rmse_3d = np.sqrt(np.sum(self.rmse_xyz**2))
 
-    def _output(self):
+    def _output(self) -> None:
         """
         Stores registration results in a dictionary and writes them to a file
         """
@@ -408,7 +422,7 @@ class Scaled3dSimilarityTransform:
     from: https://github.com/scikit-image/scikit-image/blob/main/skimage/transform/_geometric.py
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.solve_scale = True
 
     def estimate(self, src: np.ndarray, dst: np.ndarray) -> bool:
@@ -538,7 +552,7 @@ class Unscaled3dSimilarityTransform:
     from: https://github.com/scikit-image/scikit-image/blob/main/skimage/transform/_geometric.py
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.solve_scale = False
 
     def estimate(self, src: np.ndarray, dst: np.ndarray) -> bool:
