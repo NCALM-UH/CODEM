@@ -323,12 +323,8 @@ class IcpRegistration:
         A = np.hstack((A1, A2, A3))
 
         if self.config["ICP_ROBUST"]:
-            assert (
-                np.linalg.det(A.T @ weights @ A) != 0
-            ), "Matrix is singular/non-invertible"
             x = np.linalg.inv(A.T @ weights @ A) @ A.T @ weights @ b
         else:
-            assert np.linalg.det(A.T @ A) != 0, "Matrix is singular/non-invertible"
             x = np.linalg.inv(A.T @ A) @ A.T @ b
 
         x[0:3] /= x[6]
@@ -401,12 +397,8 @@ class IcpRegistration:
         A = np.hstack((A1, A2))
 
         if self.config["ICP_ROBUST"]:
-            assert (
-                np.linalg.det(A.T @ weights @ A) != 0
-            ), "Matrix is singular/non-invertible"
             x = np.linalg.inv(A.T @ weights @ A) @ A.T @ weights @ b
         else:
-            assert np.linalg.det(A.T @ A) != 0, "Matrix is singular/non-invertible"
             x = np.linalg.inv(A.T @ A) @ A.T @ b
 
         x = np.linalg.inv(A.T @ A) @ A.T @ b
