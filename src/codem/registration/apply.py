@@ -196,21 +196,19 @@ class ApplyRegistration:
         self.logger.info(
             f"Registration has been applied to AOI-DSM and saved to: {self.out_name}"
         )
-
         if self.config["ICP_SAVE_RESIDUALS"]:
-            src = rasterio.open(self.out_name)
-            dsm = src.read(1)
-            transform = src.transform
-            nodata = src.nodata
-            tags = src.tags()
-            if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
-                area_or_point = "Area"
-            elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
-                area_or_point = "Point"
-            else:
-                area_or_point = "Area"
-            profile = src.profile
-            src.close()
+            with rasterio.open(self.out_name) as src:
+                dsm = src.read(1)
+                transform = src.transform
+                nodata = src.nodata
+                tags = src.tags()
+                if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
+                    area_or_point = "Area"
+                elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
+                    area_or_point = "Point"
+                else:
+                    area_or_point = "Area"
+                profile = src.profile
 
             rows = np.arange(dsm.shape[0], dtype=np.float64)
             cols = np.arange(dsm.shape[1], dtype=np.float64)
@@ -254,20 +252,19 @@ class ApplyRegistration:
 
             profile.update(count=6, driver="GTiff")
 
-            dst = rasterio.open(out_name_res, "w", **profile)
-            dst.write(dsm, 1)
-            dst.write(res_x, 2)
-            dst.write(res_y, 3)
-            dst.write(res_z, 4)
-            dst.write(res_horiz, 5)
-            dst.write(res_3d, 6)
-            dst.set_band_description(1, "DSM")
-            dst.set_band_description(2, "ResidualX")
-            dst.set_band_description(3, "ResidualY")
-            dst.set_band_description(4, "ResidualZ")
-            dst.set_band_description(5, "ResidualHoriz")
-            dst.set_band_description(6, "Residual3D")
-            dst.close()
+            with rasterio.open(out_name_res, "w", **profile) as dst:
+                dst.write(dsm, 1)
+                dst.write(res_x, 2)
+                dst.write(res_y, 3)
+                dst.write(res_z, 4)
+                dst.write(res_horiz, 5)
+                dst.write(res_3d, 6)
+                dst.set_band_description(1, "DSM")
+                dst.set_band_description(2, "ResidualX")
+                dst.set_band_description(3, "ResidualY")
+                dst.set_band_description(4, "ResidualZ")
+                dst.set_band_description(5, "ResidualHoriz")
+                dst.set_band_description(6, "Residual3D")
 
             self.logger.info(
                 f"ICP residuals have been computed for each registered AOI-DSM cell and saved to: {out_name_res}"
