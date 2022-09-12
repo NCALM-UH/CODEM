@@ -15,9 +15,9 @@ import logging
 import os
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import TYPE_CHECKING
 from typing import Union
 
 import codem.lib.resources as r
@@ -94,7 +94,9 @@ class ApplyRegistration:
         out_name = root + "_registered" + ext
         self.out_name: str = os.path.join(self.config["OUTPUT_DIR"], out_name)
 
-    def get_registration_transformation(self) -> Union[np.ndarray, Dict[str, str]]:
+    def get_registration_transformation(
+        self,
+    ) -> Union[np.ndarray, Dict[str, str]]:
         """
         Generates the transformation from the AOI to FND coordinate system.
         The transformation accommodates linear unit differences and the solved
@@ -158,38 +160,38 @@ class ApplyRegistration:
         output_name = root + "_registered" + ext
         output_path = os.path.join(self.config["OUTPUT_DIR"], output_name)
 
-        pipe = [
-            {"type": "readers.gdal", "filename": self.aoi_file, "header": "Z"},
-            {
+        # construct pdal pipeline
+        pipe = [{"type": "readers.gdal", "filename": self.aoi_file, "header": "Z"}]
+
+        # no nodata is present, filter based on its limits
+        if self.aoi_nodata is not None:
+            range_filter_task = {
                 "type": "filters.range",
                 "limits": "Z![{}:{}]".format(self.aoi_nodata, self.aoi_nodata),
-            },
-            self.get_registration_transformation(),
-            # Delaunay triangulation and rastering preserves detail better than
-            # the IDW used in the GDAL writer. But there it also rasters very
-            # long triangle on the boundary. Will need to update PDAL filter to
-            # get rid of this problem.
-            # {
-            #     "type": "filters.delaunay",
-            # },
-            # {
-            #     "type": "filters.faceraster",
-            #     "resolution": (1 / self.fnd_units_factor) * self.aoi_resolution,
-            # },
-            # {
-            #     "type": "writers.raster",
-            #     "nodata": self.aoi_nodata,
-            #     "gdaldriver": "GTiff",
-            #     "filename": output_path,
-            # },
-            {
-                "type": "writers.gdal",
-                "resolution": self.aoi_resolution,
-                "output_type": "idw",
-                "nodata": self.aoi_nodata,
-                "filename": output_path,
-            },
-        ]
+            }
+            pipe.append(range_filter_task)
+
+        # insert the transform filter to register the AOI
+        registration_task = self.get_registration_transformation()
+        if isinstance(registration_task, dict):
+            pipe.append(registration_task)
+        else:
+            raise ValueError(
+                f"get_registration_transoformation returned {type(registration_task)} "
+                "not a dictionary of strings as needed for the pdal pipeline."
+            )
+
+        # pdal writing task
+        writer_task = {
+            "type": "writers.gdal",
+            "resolution": self.aoi_resolution,
+            "output_type": "idw",
+            "filename": output_path,
+        }
+        # Add nodata argument only if nodata is actually present
+        if self.aoi_nodata is not None:
+            writer_task["nodata"] = self.aoi_nodata
+        pipe.append(writer_task)
         p = pdal.Pipeline(json.dumps(pipe))
         p.execute()
 
