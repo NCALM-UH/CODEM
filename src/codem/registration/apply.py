@@ -15,9 +15,9 @@ import logging
 import os
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import TYPE_CHECKING
 from typing import Union
 
 import codem.lib.resources as r
@@ -94,7 +94,9 @@ class ApplyRegistration:
         out_name = root + "_registered" + ext
         self.out_name: str = os.path.join(self.config["OUTPUT_DIR"], out_name)
 
-    def get_registration_transformation(self) -> Union[np.ndarray, Dict[str, str]]:
+    def get_registration_transformation(
+        self,
+    ) -> Union[np.ndarray, Dict[str, str]]:
         """
         Generates the transformation from the AOI to FND coordinate system.
         The transformation accommodates linear unit differences and the solved
@@ -158,59 +160,57 @@ class ApplyRegistration:
         output_name = root + "_registered" + ext
         output_path = os.path.join(self.config["OUTPUT_DIR"], output_name)
 
-        pipe = [
-            {"type": "readers.gdal", "filename": self.aoi_file, "header": "Z"},
-            {
+        # construct pdal pipeline
+        pipe = [{"type": "readers.gdal", "filename": self.aoi_file, "header": "Z"}]
+
+        # no nodata is present, filter based on its limits
+        if self.aoi_nodata is not None:
+            range_filter_task = {
                 "type": "filters.range",
                 "limits": "Z![{}:{}]".format(self.aoi_nodata, self.aoi_nodata),
-            },
-            self.get_registration_transformation(),
-            # Delaunay triangulation and rastering preserves detail better than
-            # the IDW used in the GDAL writer. But there it also rasters very
-            # long triangle on the boundary. Will need to update PDAL filter to
-            # get rid of this problem.
-            # {
-            #     "type": "filters.delaunay",
-            # },
-            # {
-            #     "type": "filters.faceraster",
-            #     "resolution": (1 / self.fnd_units_factor) * self.aoi_resolution,
-            # },
-            # {
-            #     "type": "writers.raster",
-            #     "nodata": self.aoi_nodata,
-            #     "gdaldriver": "GTiff",
-            #     "filename": output_path,
-            # },
-            {
-                "type": "writers.gdal",
-                "resolution": self.aoi_resolution,
-                "output_type": "idw",
-                "nodata": self.aoi_nodata,
-                "filename": output_path,
-            },
-        ]
+            }
+            pipe.append(range_filter_task)
+
+        # insert the transform filter to register the AOI
+        registration_task = self.get_registration_transformation()
+        if isinstance(registration_task, dict):
+            pipe.append(registration_task)
+        else:
+            raise ValueError(
+                f"get_registration_transoformation returned {type(registration_task)} "
+                "not a dictionary of strings as needed for the pdal pipeline."
+            )
+
+        # pdal writing task
+        writer_task = {
+            "type": "writers.gdal",
+            "resolution": self.aoi_resolution,
+            "output_type": "idw",
+            "filename": output_path,
+        }
+        # Add nodata argument only if nodata is actually present
+        if self.aoi_nodata is not None:
+            writer_task["nodata"] = self.aoi_nodata
+        pipe.append(writer_task)
         p = pdal.Pipeline(json.dumps(pipe))
         p.execute()
 
         self.logger.info(
             f"Registration has been applied to AOI-DSM and saved to: {self.out_name}"
         )
-
         if self.config["ICP_SAVE_RESIDUALS"]:
-            src = rasterio.open(self.out_name)
-            dsm = src.read(1)
-            transform = src.transform
-            nodata = src.nodata
-            tags = src.tags()
-            if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
-                area_or_point = "Area"
-            elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
-                area_or_point = "Point"
-            else:
-                area_or_point = "Area"
-            profile = src.profile
-            src.close()
+            with rasterio.open(self.out_name) as src:
+                dsm = src.read(1)
+                transform = src.transform
+                nodata = src.nodata
+                tags = src.tags()
+                if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
+                    area_or_point = "Area"
+                elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
+                    area_or_point = "Point"
+                else:
+                    area_or_point = "Area"
+                profile = src.profile
 
             rows = np.arange(dsm.shape[0], dtype=np.float64)
             cols = np.arange(dsm.shape[1], dtype=np.float64)
@@ -254,20 +254,19 @@ class ApplyRegistration:
 
             profile.update(count=6, driver="GTiff")
 
-            dst = rasterio.open(out_name_res, "w", **profile)
-            dst.write(dsm, 1)
-            dst.write(res_x, 2)
-            dst.write(res_y, 3)
-            dst.write(res_z, 4)
-            dst.write(res_horiz, 5)
-            dst.write(res_3d, 6)
-            dst.set_band_description(1, "DSM")
-            dst.set_band_description(2, "ResidualX")
-            dst.set_band_description(3, "ResidualY")
-            dst.set_band_description(4, "ResidualZ")
-            dst.set_band_description(5, "ResidualHoriz")
-            dst.set_band_description(6, "Residual3D")
-            dst.close()
+            with rasterio.open(out_name_res, "w", **profile) as dst:
+                dst.write(dsm, 1)
+                dst.write(res_x, 2)
+                dst.write(res_y, 3)
+                dst.write(res_z, 4)
+                dst.write(res_horiz, 5)
+                dst.write(res_3d, 6)
+                dst.set_band_description(1, "DSM")
+                dst.set_band_description(2, "ResidualX")
+                dst.set_band_description(3, "ResidualY")
+                dst.set_band_description(4, "ResidualZ")
+                dst.set_band_description(5, "ResidualHoriz")
+                dst.set_band_description(6, "Residual3D")
 
             self.logger.info(
                 f"ICP residuals have been computed for each registered AOI-DSM cell and saved to: {out_name_res}"

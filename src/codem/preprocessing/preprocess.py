@@ -29,7 +29,6 @@ import logging
 import os
 import tempfile
 from typing import Optional
-from typing import TypeVar
 
 import codem.lib.resources as r
 import cv2
@@ -134,15 +133,15 @@ class GeoData:
                 self.crs = data.crs
 
                 tags = data.tags()
-                if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
-                    self.area_or_point = "Area"
-                elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
-                    self.area_or_point = "Point"
-                else:
-                    self.area_or_point = "Area"
-                    self.logger.debug(
-                        f"'AREA_OR_POINT' not supplied in {tag}-{self.type.upper()} - defaulting to 'Area'"
-                    )
+            if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
+                self.area_or_point = "Area"
+            elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
+                self.area_or_point = "Point"
+            else:
+                self.area_or_point = "Area"
+                self.logger.debug(
+                    f"'AREA_OR_POINT' not supplied in {tag}-{self.type.upper()} - defaulting to 'Area'"
+                )
 
         if self.nodata is None:
             self.logger.info(f"{tag}-{self.type.upper()} does not have a nodata value.")
@@ -328,57 +327,58 @@ class DSM(GeoData):
         Resamples the DSM to the registration pipeline resolution and applies
         a scale factor to convert to meters.
         """
-        data = rasterio.open(self.file)
-        resample_factor = self.native_resolution / self.resolution
-        tag = ["AOI", "Foundation"][int(self.fnd)]
-        if resample_factor != 1:
-            self.logger.info(
-                f"Resampling {tag}-{self.type.upper()} to a pixel resolution of: {self.resolution} meters"
-            )
-            self.dsm = data.read(
-                1,
-                out_shape=(
-                    data.count,
-                    int(data.height * resample_factor),
-                    int(data.width * resample_factor),
-                ),
-                resampling=Resampling.cubic,
-            )
-            # We post-multiply the transform by the resampling scale. This does
-            # not change the origin coordinates, only the pixel scale.
-            self.transform = data.transform * data.transform.scale(
-                (data.width / self.dsm.shape[-1]),
-                (data.height / self.dsm.shape[-2]),
-            )
-        else:
-            self.logger.info(f"No resampling required for {tag}-{self.type.upper()}")
-            self.dsm = data.read(1)
-            self.transform = data.transform
-        # Scale the elevation values into meters
-        mask = (self._get_nodata_mask(self.dsm)).astype(bool)
-        self.dsm[mask] *= self.units_factor
+        with rasterio.open(self.file) as data:
+            resample_factor = self.native_resolution / self.resolution
+            tag = ["AOI", "Foundation"][int(self.fnd)]
+            if resample_factor != 1:
+                self.logger.info(
+                    f"Resampling {tag}-{self.type.upper()} to a pixel resolution of: {self.resolution} meters"
+                )
+                self.dsm = data.read(
+                    1,
+                    out_shape=(
+                        data.count,
+                        int(data.height * resample_factor),
+                        int(data.width * resample_factor),
+                    ),
+                    resampling=Resampling.cubic,
+                )
+                # We post-multiply the transform by the resampling scale. This does
+                # not change the origin coordinates, only the pixel scale.
+                self.transform = data.transform * data.transform.scale(
+                    (data.width / self.dsm.shape[-1]),
+                    (data.height / self.dsm.shape[-2]),
+                )
+            else:
+                self.logger.info(
+                    f"No resampling required for {tag}-{self.type.upper()}"
+                )
+                self.dsm = data.read(1)
+                self.transform = data.transform
+            # Scale the elevation values into meters
+            mask = (self._get_nodata_mask(self.dsm)).astype(bool)
+            self.dsm[mask] *= self.units_factor
 
-        # We pre-multiply the transform by the unit change scale. This scales
-        # the origin coordinates into meters and also changes the pixel scale
-        # into meters.
-        self.transform = (
-            data.transform.scale(self.units_factor, self.units_factor) * self.transform
-        )
-
-        self.nodata = data.nodata
-        self.crs = data.crs
-        tags = data.tags()
-        if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
-            self.area_or_point = "Area"
-        elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
-            self.area_or_point = "Point"
-        else:
-            self.area_or_point = "Area"
-            self.logger.debug(
-                f"'AREA_OR_POINT' not supplied in {tag}-{self.type.upper()} - defaulting to 'Area'"
+            # We pre-multiply the transform by the unit change scale. This scales
+            # the origin coordinates into meters and also changes the pixel scale
+            # into meters.
+            self.transform = (
+                data.transform.scale(self.units_factor, self.units_factor)
+                * self.transform
             )
 
-        data.close()
+            self.nodata = data.nodata
+            self.crs = data.crs
+            tags = data.tags()
+            if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
+                self.area_or_point = "Area"
+            elif "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Point":
+                self.area_or_point = "Point"
+            else:
+                self.area_or_point = "Area"
+                self.logger.debug(
+                    f"'AREA_OR_POINT' not supplied in {tag}-{self.type.upper()} - defaulting to 'Area'"
+                )
 
         if self.nodata is None:
             self.logger.info(f"{tag}-{self.type.upper()} does not have a nodata value.")
@@ -389,27 +389,27 @@ class DSM(GeoData):
         """
         Calculates the pixel resolution of the DSM file.
         """
-        data = rasterio.open(self.file)
-        T = data.transform
-        A = np.array(T).reshape(3, 3)[0:2, 0:2]
-        assert np.all(
-            A == np.diag(np.diagonal(A))
-        ), "Raster transforms cannot contain a rotation angle."
-        assert np.trace(A) == 0, "X scale and Y scale must be identical."
+        with rasterio.open(self.file) as data:
+            T = data.transform
+            A = np.array(T).reshape(3, 3)[0:2, 0:2]
+            assert np.all(
+                A == np.diag(np.diagonal(A))
+            ), "Raster transforms cannot contain a rotation angle."
+            assert np.trace(A) == 0, "X scale and Y scale must be identical."
 
-        tag = ["AOI", "Foundation"][int(self.fnd)]
-        if data.crs is None:
-            self.logger.warning(
-                f"Linear unit for {tag}-{self.type.upper()} not detected --> meters assumed"
-            )
-            px_res = np.abs(T[0])
-        else:
-            self.logger.info(
-                f"Linear unit for {tag}-{self.type.upper()} detected as {data.crs.linear_units}"
-            )
-            px_res = np.abs(T[0]) * data.crs.linear_units_factor[1]
-            self.units_factor = data.crs.linear_units_factor[1]
-            self.units = data.crs.linear_units
+            tag = ["AOI", "Foundation"][int(self.fnd)]
+            if data.crs is None:
+                self.logger.warning(
+                    f"Linear unit for {tag}-{self.type.upper()} not detected --> meters assumed"
+                )
+                px_res = np.abs(T[0])
+            else:
+                self.logger.info(
+                    f"Linear unit for {tag}-{self.type.upper()} detected as {data.crs.linear_units}"
+                )
+                px_res = np.abs(T[0]) * data.crs.linear_units_factor[1]
+                self.units_factor = data.crs.linear_units_factor[1]
+                self.units = data.crs.linear_units
 
         resolution = round(px_res, 1)
         self.logger.info(
@@ -475,7 +475,6 @@ class PointCloud(GeoData):
         pipeline.execute()
 
         tag = ["AOI", "Foundation"][int(self.fnd)]
-        # metadata = json.loads(pipeline.metadata)["metadata"]
         metadata = pipeline.metadata["metadata"]
         reader_metadata = [val for key, val in metadata.items() if "readers" in key]
         if reader_metadata[0]["srs"]["horizontal"] == "":
