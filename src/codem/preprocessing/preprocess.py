@@ -97,12 +97,23 @@ class GeoData:
         self.normed = np.empty((0, 0), dtype=np.uint8)
         self.normal_vectors = np.empty((0, 0), dtype=np.double)
         self.processed = False
-        self.resolution = 0
-        self.native_resolution = 0
+        self._resolution = 0.0
+        self.native_resolution = 0.0
         self.units_factor = 1.0
         self.units = None
         self.weak_size = config["DSM_WEAK_FILTER"]
         self.strong_size = config["DSM_STRONG_FILTER"]
+
+    @property
+    def resolution(self) -> float:
+        return self._resolution
+
+    @resolution.setter
+    def resolution(self, value: float) -> None:
+        if not value > 0.0:
+            raise ValueError("Resolution must be greater than 0")
+        self._resolution = value
+        return None
 
     def _read_dsm(self, file_path: str) -> None:
         """
@@ -113,10 +124,6 @@ class GeoData:
         file_path: str
             Path to DSM data
         """
-        assert (
-            self.resolution is not None
-        ), "Resolution must be set prior to preprocessing"
-
         tag = ["AOI", "Foundation"][int(self.fnd)]
 
         if self.dsm.size == 0:
@@ -255,10 +262,11 @@ class GeoData:
         """
         k = 9
         n_points = self.point_cloud.shape[0]
-        assert (
-            n_points >= k
-        ), f"Point cloud must have at least {k} points to generate normal vectors."
 
+        if n_points < k:
+            raise RuntimeError(
+                f"Point cloud must have at least {k} points to generate normal vectors"
+            )
         xyz_dtype = np.dtype([("X", np.double), ("Y", np.double), ("Z", np.double)])
         xyz = np.empty(self.point_cloud.shape[0], dtype=xyz_dtype)
         xyz["X"] = self.point_cloud[:, 0]
@@ -425,10 +433,6 @@ class PointCloud(GeoData):
         """
         Converts the point cloud to meters and rasters it to a DSM.
         """
-        assert (
-            self.resolution is not None
-        ), "Resolution must be set prior to preprocessing"
-
         tag = ["AOI", "Foundation"][int(self.fnd)]
         self.logger.info(
             f"Extracting DSM from {tag}-{self.type.upper()} with resolution of: {self.resolution} meters"
@@ -513,10 +517,6 @@ class Mesh(GeoData):
         """
         Converts mesh vertices to meters and rasters them to a DSM.
         """
-        assert (
-            self.resolution is not None
-        ), "Resolution must be set prior to preprocessing"
-
         tag = ["AOI", "Foundation"][int(self.fnd)]
         self.logger.info(
             f"Extracting DSM from {tag}-{self.type.upper()} with resolution of: {self.resolution} meters"

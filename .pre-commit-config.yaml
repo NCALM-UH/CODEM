@@ -24,4 +24,4 @@
     rev: v0.971
     hooks:
     -   id: mypy
-        additional_dependencies: [numpy==1.20.1]
+        additional_dependencies: [numpy~=1.20.0, types-PyYAML]
