@@ -19,6 +19,7 @@ import logging
 import os
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Tuple
 
 import cv2
@@ -62,10 +63,32 @@ class DsmRegistration:
         self.config = config
         self.fnd_obj = fnd_obj
         self.aoi_obj = aoi_obj
+        self._putative_matches: List[cv2.DMatch] = []
 
-        assert (
-            aoi_obj.processed and fnd_obj.processed
-        ), "Input data has not been preprocessed"
+        if not aoi_obj.processed:
+            raise RuntimeError(
+                "AOI data has not been pre-procssed, did you call the prep method?"
+            )
+        if not fnd_obj.processed:
+            raise RuntimeError(
+                "Foundation data has not been pre-processed, did you call the prep method?"
+            )
+
+    @property
+    def putative_matches(self) -> List[cv2.DMatch]:
+        return self._putative_matches
+
+    @putative_matches.setter
+    def putative_matches(self, matches: List[cv2.DMatch]) -> None:
+        if len(matches) < 4:
+            raise RuntimeError(
+                (
+                    f"{len(matches)} putative keypoint matches found (4 required). "
+                    "Consider modifying DSM_LOWES_RATIO, current value: "
+                    f"{self.config['DSM_LOWES_RATIO']}"
+                )
+            )
+        self._putative_matches = matches
 
     def register(self) -> None:
         """
@@ -84,16 +107,27 @@ class DsmRegistration:
             self.fnd_obj.normed, self.fnd_obj.nodata_mask
         )
         self.logger.debug(f"{len(self.fnd_kp)} keypoints detected in foundation")
-        assert (
-            len(self.fnd_kp) >= 4
-        ), "Less than four keypoints found in Foundation data."
+        if len(self.fnd_kp) < 4:
+            raise RuntimeError(
+                (
+                    f"{len(self.fnd_kp)} keypoints were identiifed in the Foundation data"
+                    " (4 required).  Consider modifying the DSM_AKAZE_THRESHOLD parameter,"
+                    f" current value is {self.config['DSM_AKAZE_THRESHOLD']}"
+                )
+            )
 
-        (self.aoi_kp, self.aoi_desc) = self._get_kp(
+        self.aoi_kp, self.aoi_desc = self._get_kp(
             self.aoi_obj.normed, self.aoi_obj.nodata_mask
         )
         self.logger.debug(f"{len(self.aoi_kp)} keypoints detected in area of interest")
-        assert len(self.aoi_kp) >= 4, "Less than four keypoints found in AOI data."
-
+        if len(self.aoi_kp) < 4:
+            raise RuntimeError(
+                (
+                    f"{len(self.aoi_kp)} keypoints were identiifed in the "
+                    "AOI data (4 required).  Consider modifying the DSM_AKAZE_THRESHOLD"
+                    f"parameter, current value is {self.config['DSM_AKAZE_THRESHOLD']}"
+                )
+            )
         self._get_putative()
         self._filter_putative()
         self._save_match_img()
@@ -160,8 +194,6 @@ class DsmRegistration:
                 good_matches.append(m)
 
         self.logger.debug(f"{len(good_matches)} putative keypoint matches found.")
-        assert len(good_matches) >= 4, "Less than four putative keypoint matches found."
-
         self.putative_matches = good_matches
 
     def _filter_putative(self) -> None:
