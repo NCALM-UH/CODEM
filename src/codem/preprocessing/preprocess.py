@@ -195,7 +195,6 @@ class GeoData:
         while np.sum(infill_mask) < infill_mask.size:
             infilled = rasterio.fill.fillnodata(infilled, mask=infill_mask)
             infill_mask = self._get_nodata_mask(infilled)
-
         self.infilled = infilled
         self.nodata_mask = mask
 
@@ -216,7 +215,6 @@ class GeoData:
             self.infilled, (0, 0), self.strong_size / scale
         )
         bandpassed = weak_filtered - strong_filtered
-
         low = np.percentile(bandpassed, 1)
         high = np.percentile(bandpassed, 99)
         clipped = np.clip(bandpassed, low, high)
@@ -358,7 +356,7 @@ class DSM(GeoData):
 
             self.nodata = data.nodata
             self.crs = data.crs
-            
+
             # Scale the elevation values into meters
             mask = (self._get_nodata_mask(self.dsm)).astype(bool)
             self.dsm[mask] *= self.units_factor
@@ -370,7 +368,6 @@ class DSM(GeoData):
                 data.transform.scale(self.units_factor, self.units_factor)
                 * self.transform
             )
-
 
             tags = data.tags()
             if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
@@ -414,12 +411,11 @@ class DSM(GeoData):
                 self.units_factor = data.crs.linear_units_factor[1]
                 self.units = data.crs.linear_units
 
-        resolution = round(px_res, 1)
         self.logger.info(
-            f"Calculated native resolution of {tag}-{self.type.upper()} as: {resolution} meters"
+            f"Calculated native resolution of {tag}-{self.type.upper()} as: {px_res:.1f} meters"
         )
 
-        self.native_resolution = resolution
+        self.native_resolution = px_res
 
 
 class PointCloud(GeoData):
@@ -497,12 +493,11 @@ class PointCloud(GeoData):
             self.units_factor = crs.linear_units_factor[1]
             self.units = crs.linear_units
 
-        resolution = round(spacing, 1)
         self.logger.info(
-            f"Calculated native resolution for {tag}-{self.type.upper()} as: {resolution} meters"
+            f"Calculated native resolution for {tag}-{self.type.upper()} as: {spacing:.1f} meters"
         )
 
-        self.native_resolution = resolution
+        self.native_resolution = spacing
 
 
 class Mesh(GeoData):
@@ -590,12 +585,11 @@ class Mesh(GeoData):
             self.units = mesh.units
             spacing *= self.units_factor
 
-        resolution = round(spacing, 1)
         self.logger.info(
-            f"Calculated native resolution for {tag}-{self.type.upper()} as: {resolution} meters"
+            f"Calculated native resolution for {tag}-{self.type.upper()} as: {spacing:.1f} meters"
         )
 
-        self.native_resolution = resolution
+        self.native_resolution = spacing
 
 
 def instantiate(config: dict, fnd: bool) -> GeoData:
