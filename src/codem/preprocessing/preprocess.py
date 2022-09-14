@@ -355,6 +355,10 @@ class DSM(GeoData):
                 )
                 self.dsm = data.read(1)
                 self.transform = data.transform
+
+            self.nodata = data.nodata
+            self.crs = data.crs
+            
             # Scale the elevation values into meters
             mask = (self._get_nodata_mask(self.dsm)).astype(bool)
             self.dsm[mask] *= self.units_factor
@@ -367,8 +371,7 @@ class DSM(GeoData):
                 * self.transform
             )
 
-            self.nodata = data.nodata
-            self.crs = data.crs
+
             tags = data.tags()
             if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
                 self.area_or_point = "Area"
