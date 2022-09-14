@@ -467,6 +467,7 @@ class Register_MultiType(object):
             category="ICP Registration Options",
         )
 
+
         # Foundation data file
         # fnd.value = "E:\dev\codem\demo\Foundation-PointCloud.laz"
         fnd.filter.list = ['las', 'laz', 'bpf', 'ply', 'obj', 'tif', 'tiff']
@@ -528,6 +529,7 @@ class Register_MultiType(object):
         # Robust ICP option
         ir.value = True
 
+
         #         0    1    2    3    4    5    6    7    8    9     10   11   12   13   14   15
         params = [fnd, aoi, min, dss, iss, dsf, dwf, dat, dlr, drmi, drt, imi, iat, idt, irt, ir]
         return params
@@ -540,6 +542,9 @@ class Register_MultiType(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
+
+
+
         return
 
     def updateMessages(self, parameters):
@@ -549,10 +554,42 @@ class Register_MultiType(object):
             if parameters[5].value <= parameters[6].value:
                 parameters[5].setErrorMessage("Strong filter size must be larger than weak filter size")
                 parameters[6].setErrorMessage("Weak filter size must be smaller than large filter size")
-        return
+        
+        #Check if input DEMs have equal X and Y cell size values
 
+        #first make sure both params are input
+        if parameters[0].value and parameters[1].value:
+            #get path split into head and tail
+            fnd_list = os.path.split(parameters[0].valueAsText)
+            aoi_list = os.path.split(parameters[1].valueAsText)
+            fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/")
+            aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/")
+
+            inputs_list =[fnd_full_path, aoi_full_path]
+            #check for both FND and AOI
+            for input_file in inputs_list:
+                #analysis can only be done with raster/DEM inpu
+                if input_file[-3:] == 'tif':
+                    #need to access detail of Band1 (or only band for DEMs)
+                    input_band1 = input_file+ '/Band_1'
+                    desc = arcpy.Describe(input_band1)
+                    
+                    #if Y does not equal X, it can't happen!
+                    if desc.meanCellHeight != desc.meanCellWidth:
+                        
+                        if input_file == fnd_full_path:
+                            warningString = f"Warning: X and Y cell sizes are not equal in {fnd_list[1]}. The tool will not run with the input data as is. Consider reprojecting input DEM"
+                            parameters[0].setErrorMessage(warningString)
+                        if input_file == aoi_full_path:
+                            warningString = f"Warning: X and Y cell sizes are not equal in {aoi_list[1]}. The tool will not run with the input data as is. Consider reprojecting input DEM"
+                            parameters[1].setErrorMessage(warningString)
+
+
+        return
     def execute(self, parameters, messages):
         """The source code of the tool."""
+
+        
         fnd_dir, fnd_file = os.path.split(parameters[0].valueAsText)
         aoi_dir, aoi_file = os.path.split(parameters[1].valueAsText)
 
@@ -586,7 +623,8 @@ class Register_MultiType(object):
 
         arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
         arcpy.SetProgressorPosition()
-        reg_file = codem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format='las')
+        reg_file = codem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format=aoi_file[-3:])
+        arcpy.AddMessage("Registered File can be found at "+reg_file)
 
         if not os.path.exists(reg_file):
             arcpy.AddError("Registration file not generated")
