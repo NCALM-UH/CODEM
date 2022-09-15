@@ -569,7 +569,7 @@ class Register_MultiType(object):
             #check for both FND and AOI
             for input_file in inputs_list:
                 #analysis can only be done with raster/DEM inpu
-                if input_file[-3:] == 'tif':
+                if input_file[-3:] == 'tif' or input_file[-3:] == 'iff':
                     #need to access detail of Band1 (or only band for DEMs)
                     input_band1 = input_file+ '/Band_1'
                     desc = arcpy.Describe(input_band1)
