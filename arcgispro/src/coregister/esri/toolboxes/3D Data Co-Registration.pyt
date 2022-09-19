@@ -547,6 +547,8 @@ class Register_MultiType(object):
     def updateMessages(self, parameters):
         """Modify the messages created by internal validation for each tool
         parameter.  This method is called after internal validation."""
+
+        #Strong and weak filter size check
         if parameters[5].value and parameters[6].value:
             if parameters[5].value <= parameters[6].value:
                 parameters[5].setErrorMessage("Strong filter size must be larger than weak filter size")
@@ -562,40 +564,39 @@ class Register_MultiType(object):
 
             inputs_list =[fnd_full_path, aoi_full_path]
             #check for both FND and AOI
-            for input_file in inputs_list:
+            for index, input_file in enumerate(inputs_list):
                 #analysis can only be done with raster/DEM input
                 if os.path.splitext(input_file)[-1] in {'.tif', '.tiff'}:
                     #see number of bands in raster (Valid DEMs only have 1)
-                    banddesc = arcpy.Describe(input_file)
+                    raster_description = arcpy.Describe(input_file)
                    
                     #set warning (tool can still be run) if more than one band
-                    if banddesc.bandCount != 1:
-                        if input_file == fnd_full_path:
-                                warningString = f"Warning: Input DEM has more than one band in {os.path.split(fnd_full_path)[-1]}. The tool will not run properly with the input data as is. Consider regenerating input DEM"
-                                parameters[0].setWarningMessage(warningString)
-                        if input_file == aoi_full_path:
-                                warningString = f"Warning: Input DEM has more than one band in {os.path.split(aoi_full_path)[-1]}. The tool will not run properly with the input data as is. Consider regenerating input DEM"
-                                parameters[1].setWarningMessage(warningString)
-                    
+                    if raster_description.bandCount != 1:
+                        parameters[index].setWarningMessage(
+                        "Warning: Input DEM has more than one band in "
+                        f"{os.path.basename(input_file)}. "
+                        "The tool will not run properly with the "
+                        "input data as is. Consider regenerating input DEM"
+                        )
+
                     #need to access detail of Band1 (or only band for DEMs)
 
                     #first get band name
                     arcpy.env.workspace = input_file
-                    bands = arcpy.ListRasters()
+                    bands_list = arcpy.ListRasters()
                     #join only band to get band description
-                    DEMband = os.path.join(input_file, bands[0])
-                    desc = arcpy.Describe(DEMband)
+                    # Refer to code sample for accessing Raster Band Properties: https://pro.arcgis.com/en/pro-app/2.9/arcpy/functions/raster-band-properties.htm
+                    band_description = arcpy.Describe(os.path.join(input_file, bands_list[0]))
                         
                     #if Y does not equal X, it can't happen!
-                    if desc.meanCellHeight != desc.meanCellWidth:
-                            
-                        if input_file == fnd_full_path:
-                            warningString = f"Error: X and Y cell sizes are not equal in {os.path.split(fnd_full_path)[-1]}. The tool will not run with the input data as is. Consider reprojecting input DEM"
-                            parameters[0].setErrorMessage(warningString)
-                        if input_file == aoi_full_path:
-                            warningString = f"Error: X and Y cell sizes are not equal in {os.path.split(aoi_full_path)[-1]}. The tool will not run with the input data as is. Consider reprojecting input DEM"
-                            parameters[1].setErrorMessage(warningString)
-
+                    if band_description.meanCellHeight != band_description.meanCellWidth:
+                        parameters[index].setErrorMessage(
+                        "Error: X and Y cell sizes are not equal in "
+                        f"{os.path.basename(input_file)}. "
+                        "The tool will not run with the input data as is. "
+                        "Consider reprojecting input DEM"
+                        )
+                       
         return
 
     def execute(self, parameters, messages):
