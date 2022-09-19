@@ -529,7 +529,6 @@ class Register_MultiType(object):
         # Robust ICP option
         ir.value = True
 
-
         #         0    1    2    3    4    5    6    7    8    9     10   11   12   13   14   15
         params = [fnd, aoi, min, dss, iss, dsf, dwf, dat, dlr, drmi, drt, imi, iat, idt, irt, ir]
         return params
@@ -542,8 +541,6 @@ class Register_MultiType(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
-
-
 
         return
 
@@ -559,37 +556,51 @@ class Register_MultiType(object):
 
         #first make sure both params are input
         if parameters[0].value and parameters[1].value:
-            #get path split into head and tail
-            fnd_list = os.path.split(parameters[0].valueAsText)
-            aoi_list = os.path.split(parameters[1].valueAsText)
+            #get path
             fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/")
             aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/")
 
             inputs_list =[fnd_full_path, aoi_full_path]
             #check for both FND and AOI
             for input_file in inputs_list:
-                #analysis can only be done with raster/DEM inpu
-                if input_file[-3:] == 'tif' or input_file[-3:] == 'iff':
-                    #need to access detail of Band1 (or only band for DEMs)
-                    input_band1 = input_file+ '/Band_1'
-                    desc = arcpy.Describe(input_band1)
+                #analysis can only be done with raster/DEM input
+                if os.path.splitext(input_file)[-1] in {'.tif', '.tiff'}:
+                    #see number of bands in raster (Valid DEMs only have 1)
+                    banddesc = arcpy.Describe(input_file)
+                   
+                    #set warning (tool can still be run) if more than one band
+                    if banddesc.bandCount != 1:
+                        if input_file == fnd_full_path:
+                                warningString = f"Warning: Input DEM has more than one band in {os.path.split(fnd_full_path)[-1]}. The tool will not run properly with the input data as is. Consider regenerating input DEM"
+                                parameters[0].setWarningMessage(warningString)
+                        if input_file == aoi_full_path:
+                                warningString = f"Warning: Input DEM has more than one band in {os.path.split(aoi_full_path)[-1]}. The tool will not run properly with the input data as is. Consider regenerating input DEM"
+                                parameters[1].setWarningMessage(warningString)
                     
+                    #need to access detail of Band1 (or only band for DEMs)
+
+                    #first get band name
+                    arcpy.env.workspace = input_file
+                    bands = arcpy.ListRasters()
+                    #join only band to get band description
+                    DEMband = os.path.join(input_file, bands[0])
+                    desc = arcpy.Describe(DEMband)
+                        
                     #if Y does not equal X, it can't happen!
                     if desc.meanCellHeight != desc.meanCellWidth:
-                        
+                            
                         if input_file == fnd_full_path:
-                            warningString = f"Warning: X and Y cell sizes are not equal in {fnd_list[1]}. The tool will not run with the input data as is. Consider reprojecting input DEM"
+                            warningString = f"Error: X and Y cell sizes are not equal in {os.path.split(fnd_full_path)[-1]}. The tool will not run with the input data as is. Consider reprojecting input DEM"
                             parameters[0].setErrorMessage(warningString)
                         if input_file == aoi_full_path:
-                            warningString = f"Warning: X and Y cell sizes are not equal in {aoi_list[1]}. The tool will not run with the input data as is. Consider reprojecting input DEM"
+                            warningString = f"Error: X and Y cell sizes are not equal in {os.path.split(aoi_full_path)[-1]}. The tool will not run with the input data as is. Consider reprojecting input DEM"
                             parameters[1].setErrorMessage(warningString)
 
-
         return
+
     def execute(self, parameters, messages):
         """The source code of the tool."""
 
-        
         fnd_dir, fnd_file = os.path.split(parameters[0].valueAsText)
         aoi_dir, aoi_file = os.path.split(parameters[1].valueAsText)
 
@@ -623,8 +634,7 @@ class Register_MultiType(object):
 
         arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
         arcpy.SetProgressorPosition()
-        reg_file = codem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format=aoi_file[-3:])
-        arcpy.AddMessage("Registered File can be found at "+reg_file)
+        reg_file = codem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format='las')
 
         if not os.path.exists(reg_file):
             arcpy.AddError("Registration file not generated")
