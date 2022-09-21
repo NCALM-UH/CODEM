@@ -5,6 +5,7 @@ import subprocess
 import pdal
 import codem
 import dataclasses
+import math
 
 class Toolbox(object):
     def __init__(self):
@@ -589,12 +590,13 @@ class Register_MultiType(object):
                     band_description = arcpy.Describe(os.path.join(input_file, bands_list[0]))
                         
                     #if Y does not equal X, it can't happen!
-                    if band_description.meanCellHeight != band_description.meanCellWidth:
+                    if not math.isclose(band_description.meanCellHeight, band_description.meanCellWidth, abs_tol=1e-5):
                         parameters[index].setErrorMessage(
                         "Error: X and Y cell sizes are not equal in "
                         f"{os.path.basename(input_file)}. "
                         "The tool will not run with the input data as is. "
                         "Consider reprojecting input DEM"
+                        f" X = {band_description.meanCellWidth}, Y = {band_description.meanCellHeight}"
                         )
                        
         return
