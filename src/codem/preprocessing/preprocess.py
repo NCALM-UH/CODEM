@@ -343,6 +343,7 @@ class DSM(GeoData):
                 self.logger.info(
                     f"Resampling {tag}-{self.type.upper()} to a pixel resolution of: {self.resolution} meters"
                 )
+                # data is read as float32 as int dtypes result in poor keypoint identification
                 self.dsm = data.read(
                     1,
                     out_shape=(
@@ -351,6 +352,7 @@ class DSM(GeoData):
                         int(data.width * resample_factor),
                     ),
                     resampling=Resampling.cubic,
+                    out_dtype=np.float32,
                 )
                 # We post-multiply the transform by the resampling scale. This does
                 # not change the origin coordinates, only the pixel scale.
@@ -362,7 +364,8 @@ class DSM(GeoData):
                 self.logger.info(
                     f"No resampling required for {tag}-{self.type.upper()}"
                 )
-                self.dsm = data.read(1)
+                # data is read as float32 as int dtypes result in poor keypoint identification
+                self.dsm = data.read(1, out_dtype=np.float32)
                 self.transform = data.transform
 
             self.nodata = data.nodata
@@ -370,18 +373,17 @@ class DSM(GeoData):
 
             # Scale the elevation values into meters
             mask = (self._get_nodata_mask(self.dsm)).astype(bool)
-            if np.can_cast(self.units_factor, self.dsm.dtype, casting='same_kind'):
+            if np.can_cast(self.units_factor, self.dsm.dtype, casting="same_kind"):
                 self.dsm[mask] *= self.units_factor
             elif isinstance(self.units_factor, float):
                 if self.units_factor.is_integer():
                     self.dsm[mask] *= int(self.units_factor)
                 else:
-                    self.logger.warning("Cannot safely scale DSM by units factor, attempting to anyway!")
+                    self.logger.warning(
+                        "Cannot safely scale DSM by units factor, attempting to anyway!"
+                    )
                     self.dsm[mask] = np.multiply(
-                        self.dsm,
-                        self.units_factor,
-                        where=mask,
-                        casting='unsafe'
+                        self.dsm, self.units_factor, where=mask, casting="unsafe"
                     )
             else:
                 raise TypeError(
@@ -442,7 +444,7 @@ class DSM(GeoData):
                     f"Linear unit for {tag}-{self.type.upper()} not detected -> "
                     "meters assumed"
                 )
-                self.native_resolution  = abs(T.a)
+                self.native_resolution = abs(T.a)
             else:
                 self.logger.info(
                     f"Linear unit for {tag}-{self.type.upper()} detected as "
@@ -450,7 +452,7 @@ class DSM(GeoData):
                 )
                 self.units_factor = data.crs.linear_units_factor[1]
                 self.units = data.crs.linear_units
-                self.native_resolution  = abs(T.a) * self.units_factor
+                self.native_resolution = abs(T.a) * self.units_factor
         self.logger.info(
             f"Calculated native resolution of {tag}-{self.type.upper()} as: "
             f"{self.native_resolution:.1f} meters"
