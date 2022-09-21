@@ -67,7 +67,7 @@ class DsmRegistration:
 
         if not aoi_obj.processed:
             raise RuntimeError(
-                "AOI data has not been pre-procssed, did you call the prep method?"
+                "AOI data has not been pre-processed, did you call the prep method?"
             )
         if not fnd_obj.processed:
             raise RuntimeError(
