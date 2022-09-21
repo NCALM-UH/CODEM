@@ -309,6 +309,17 @@ class GeoData:
 
         self.processed = True
 
+    def _debug_plot(self, keypoints: Optional[np.ndarray] = None) -> None:
+        """Use this to show the raster"""
+        import matplotlib.pyplot as plt
+
+        img = plt.imshow(self.infilled, cmap="gray")
+        if keypoints is not None:
+            plt.scatter(
+                keypoints[:, 0], keypoints[:, 1], marker="s", color="orange", s=10.0
+            )
+        plt.show()
+
 
 class DSM(GeoData):
     """
