@@ -309,6 +309,17 @@ class GeoData:
 
         self.processed = True
 
+    def _debug_plot(self, keypoints: Optional[np.ndarray] = None) -> None:
+        """Use this to show the raster"""
+        import matplotlib.pyplot as plt
+
+        img = plt.imshow(self.infilled, cmap="gray")
+        if keypoints is not None:
+            plt.scatter(
+                keypoints[:, 0], keypoints[:, 1], marker="s", color="orange", s=10.0
+            )
+        plt.show()
+
 
 class DSM(GeoData):
     """
@@ -332,6 +343,7 @@ class DSM(GeoData):
                 self.logger.info(
                     f"Resampling {tag}-{self.type.upper()} to a pixel resolution of: {self.resolution} meters"
                 )
+                # data is read as float32 as int dtypes result in poor keypoint identification
                 self.dsm = data.read(
                     1,
                     out_shape=(
@@ -340,6 +352,7 @@ class DSM(GeoData):
                         int(data.width * resample_factor),
                     ),
                     resampling=Resampling.cubic,
+                    out_dtype=np.float32,
                 )
                 # We post-multiply the transform by the resampling scale. This does
                 # not change the origin coordinates, only the pixel scale.
@@ -351,7 +364,8 @@ class DSM(GeoData):
                 self.logger.info(
                     f"No resampling required for {tag}-{self.type.upper()}"
                 )
-                self.dsm = data.read(1)
+                # data is read as float32 as int dtypes result in poor keypoint identification
+                self.dsm = data.read(1, out_dtype=np.float32)
                 self.transform = data.transform
 
             self.nodata = data.nodata
@@ -359,7 +373,23 @@ class DSM(GeoData):
 
             # Scale the elevation values into meters
             mask = (self._get_nodata_mask(self.dsm)).astype(bool)
-            self.dsm[mask] *= self.units_factor
+            if np.can_cast(self.units_factor, self.dsm.dtype, casting="same_kind"):
+                self.dsm[mask] *= self.units_factor
+            elif isinstance(self.units_factor, float):
+                if self.units_factor.is_integer():
+                    self.dsm[mask] *= int(self.units_factor)
+                else:
+                    self.logger.warning(
+                        "Cannot safely scale DSM by units factor, attempting to anyway!"
+                    )
+                    self.dsm[mask] = np.multiply(
+                        self.dsm, self.units_factor, where=mask, casting="unsafe"
+                    )
+            else:
+                raise TypeError(
+                    f"Type of {self.units_factor} needs to be a float, is "
+                    f"{type(self.units_factor)}"
+                )
 
             # We pre-multiply the transform by the unit change scale. This scales
             # the origin coordinates into meters and also changes the pixel scale
@@ -391,31 +421,42 @@ class DSM(GeoData):
         """
         with rasterio.open(self.file) as data:
             T = data.transform
-            A = np.array(T).reshape(3, 3)[0:2, 0:2]
-            assert np.all(
-                A == np.diag(np.diagonal(A))
-            ), "Raster transforms cannot contain a rotation angle."
-            assert np.trace(A) == 0, "X scale and Y scale must be identical."
+            if T.is_identity:
+                raise ValueError(
+                    f"{os.path.basename(self.file)} has no transform data associated "
+                    "with it."
+                )
+            if not T.is_conformal:
+                raise ValueError(
+                    f"{os.path.basename(self.file)} cannot contain a rotation angle."
+                )
+
+            scales = T._scaling
+            if scales[0] != scales[1]:
+                raise ValueError(
+                    f"{os.path.basename(self.file)} has different X and Y scales, "
+                    "they must be identical"
+                )
 
             tag = ["AOI", "Foundation"][int(self.fnd)]
             if data.crs is None:
                 self.logger.warning(
-                    f"Linear unit for {tag}-{self.type.upper()} not detected --> meters assumed"
+                    f"Linear unit for {tag}-{self.type.upper()} not detected -> "
+                    "meters assumed"
                 )
-                px_res = np.abs(T[0])
+                self.native_resolution = abs(T.a)
             else:
                 self.logger.info(
-                    f"Linear unit for {tag}-{self.type.upper()} detected as {data.crs.linear_units}"
+                    f"Linear unit for {tag}-{self.type.upper()} detected as "
+                    f"{data.crs.linear_units}"
                 )
-                px_res = np.abs(T[0]) * data.crs.linear_units_factor[1]
                 self.units_factor = data.crs.linear_units_factor[1]
                 self.units = data.crs.linear_units
-
+                self.native_resolution = abs(T.a) * self.units_factor
         self.logger.info(
-            f"Calculated native resolution of {tag}-{self.type.upper()} as: {px_res:.1f} meters"
+            f"Calculated native resolution of {tag}-{self.type.upper()} as: "
+            f"{self.native_resolution:.1f} meters"
         )
-
-        self.native_resolution = px_res
 
 
 class PointCloud(GeoData):

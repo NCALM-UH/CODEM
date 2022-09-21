@@ -9,3 +9,5 @@ dependencies:
   - matplotlib
   - scikit-image
   - enlighten
+  - numpy==1.20.3
+  - typing-extensions
