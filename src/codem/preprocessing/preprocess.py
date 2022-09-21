@@ -408,31 +408,42 @@ class DSM(GeoData):
         """
         with rasterio.open(self.file) as data:
             T = data.transform
-            A = np.array(T).reshape(3, 3)[0:2, 0:2]
-            assert np.all(
-                A == np.diag(np.diagonal(A))
-            ), "Raster transforms cannot contain a rotation angle."
-            assert np.trace(A) == 0, "X scale and Y scale must be identical."
+            if T.is_identity:
+                raise ValueError(
+                    f"{os.path.basename(self.file)} has no transform data associated "
+                    "with it."
+                )
+            if not T.is_conformal:
+                raise ValueError(
+                    f"{os.path.basename(self.file)} cannot contain a rotation angle."
+                )
+
+            scales = T._scaling
+            if scales[0] != scales[1]:
+                raise ValueError(
+                    f"{os.path.basename(self.file)} has different X and Y scales, "
+                    "they must be identical"
+                )
 
             tag = ["AOI", "Foundation"][int(self.fnd)]
             if data.crs is None:
                 self.logger.warning(
-                    f"Linear unit for {tag}-{self.type.upper()} not detected --> meters assumed"
+                    f"Linear unit for {tag}-{self.type.upper()} not detected -> "
+                    "meters assumed"
                 )
-                px_res = np.abs(T[0])
+                self.native_resolution  = abs(T.a)
             else:
                 self.logger.info(
-                    f"Linear unit for {tag}-{self.type.upper()} detected as {data.crs.linear_units}"
+                    f"Linear unit for {tag}-{self.type.upper()} detected as "
+                    f"{data.crs.linear_units}"
                 )
-                px_res = np.abs(T[0]) * data.crs.linear_units_factor[1]
                 self.units_factor = data.crs.linear_units_factor[1]
                 self.units = data.crs.linear_units
-
+                self.native_resolution  = abs(T.a) * self.units_factor
         self.logger.info(
-            f"Calculated native resolution of {tag}-{self.type.upper()} as: {px_res:.1f} meters"
+            f"Calculated native resolution of {tag}-{self.type.upper()} as: "
+            f"{self.native_resolution:.1f} meters"
         )
-
-        self.native_resolution = px_res
 
 
 class PointCloud(GeoData):

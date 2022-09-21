@@ -1,3 +1,4 @@
+
 """
 DsmRegistration.py
 Project: CRREL-NEGGS University of Houston Collaboration
@@ -226,7 +227,6 @@ class DsmRegistration:
             self.aoi_obj.area_or_point,
             self.aoi_obj.infilled,
         )
-
         # Find 3D similarity transform conforming to max number of matches
         if self.config["DSM_SOLVE_SCALE"]:
             model, inliers = ransac(
@@ -244,12 +244,16 @@ class DsmRegistration:
                 residual_threshold=self.config["DSM_RANSAC_THRESHOLD"],
                 max_trials=self.config["DSM_RANSAC_MAX_ITER"],
             )
-
-        self.logger.debug(f"{np.sum(inliers)} keypoint matches found.")
+        if model is None:
+            raise ValueError(
+                "ransac model not fitted, no inliers found. Consider tuning "
+                "DSM_RANSAC_THRESHOLD or DSM_RANSAC_MAX_ITER"
+            )
+        self.logger.info(f"{np.sum(inliers)} keypoint matches found.")
         assert np.sum(inliers) >= 4, "Less than four keypoint matches found."
 
         T: np.ndarray = model.transform
-        c = np.sqrt(T[0, 0] ** 2 + T[1, 0] ** 2 + T[2, 0] ** 2)
+        c = np.linalg.norm(T[:, 0])
         assert (
             c > 0.67 and c < 1.5
         ), "Solved scale difference between foundation and AOI data exceeds 50%"
