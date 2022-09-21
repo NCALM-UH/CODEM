@@ -563,6 +563,12 @@ class Register_MultiType(object):
             fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/")
             aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/")
 
+            #check if output will be able to be visualized in Arc (.las, .tif, .tiff) and warn if not
+            if os.path.splitext(aoi_full_path)[-1] not in [".tif", ".tiff", ".las"]:
+                parameters[1].setWarningMessage(
+                f"{os.path.splitext(aoi_full_path)[-1]} cannot be visualized in ArcGIS Pro. "
+                "Output will not be shown in map."
+                )
             inputs_list =[fnd_full_path, aoi_full_path]
             #check for both FND and AOI
             for index, input_file in enumerate(inputs_list):
@@ -609,7 +615,7 @@ class Register_MultiType(object):
 
         fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/")
         aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/")
-
+        aoi_file_extension = os.path.splitext(aoi_full_path)[-1]
         arcpy.SetProgressor("step", "Registering AOI to Foundation", 0, 5)
 
         kwargs = {parameter.name.upper(): parameter.value for parameter in parameters[2:]}
@@ -637,17 +643,21 @@ class Register_MultiType(object):
 
         arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
         arcpy.SetProgressorPosition()
-        reg_file = codem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format='las')
+        reg_file = codem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format=aoi_file_extension[1:])
 
         if not os.path.exists(reg_file):
             arcpy.AddError("Registration file not generated")
+            arcpy.AddError(reg_file)
             return None
         aprx = arcpy.mp.ArcGISProject('CURRENT')
         activeMap = aprx.activeMap
         arcpy.env.addOutputsToMap = True
         if activeMap is not None:
-            activeMap.addDataFromPath(reg_file)
-            arcpy.AddMessage("ActiveMap added las file")
+            if aoi_file_extension in [".tif", ".tiff", ".las"]:
+                activeMap.addDataFromPath(reg_file)
+                arcpy.AddMessage(f"ActiveMap added {aoi_file_extension} file")
+            else:
+                arcpy.AddMessage(f"File type {aoi_file_extension} cannot be visualized in ArcGIS Pro. Consider converting AOI or visualizing in other software.")
         else:
             arcpy.AddWarning("activeMap is None")
         return None
