@@ -359,7 +359,24 @@ class DSM(GeoData):
 
             # Scale the elevation values into meters
             mask = (self._get_nodata_mask(self.dsm)).astype(bool)
-            self.dsm[mask] *= self.units_factor
+            if np.can_cast(self.units_factor, self.dsm.dtype, casting='same_kind'):
+                self.dsm[mask] *= self.units_factor
+            elif isinstance(self.units_factor, float):
+                if self.units_factor.is_integer():
+                    self.dsm[mask] *= int(self.units_factor)
+                else:
+                    self.logger.warning("Cannot safely scale DSM by units factor, attempting to anyway!")
+                    self.dsm[mask] = np.multiply(
+                        self.dsm,
+                        self.units_factor,
+                        where=mask,
+                        casting='unsafe'
+                    )
+            else:
+                raise TypeError(
+                    f"Type of {self.units_factor} needs to be a float, is "
+                    f"{type(self.units_factor)}"
+                )
 
             # We pre-multiply the transform by the unit change scale. This scales
             # the origin coordinates into meters and also changes the pixel scale
