@@ -7,6 +7,7 @@ import codem
 import dataclasses
 import math
 
+
 class Toolbox(object):
     def __init__(self):
         """Define the toolbox (the name of the toolbox is the name of the
@@ -39,7 +40,7 @@ class Register_DEM2DEM(object):
             name="aoi_file",
             datatype=["GPRasterLayer", "DEFile"],
             parameterType="Required",
-            direction="Input"
+            direction="Input",
         )
 
         min = arcpy.Parameter(
@@ -57,7 +58,7 @@ class Register_DEM2DEM(object):
             datatype="GPBoolean",
             parameterType="Required",
             direction="Input",
-            category="Solve Scale"
+            category="Solve Scale",
         )
         iss = arcpy.Parameter(
             displayName="ICP Registration",
@@ -65,7 +66,7 @@ class Register_DEM2DEM(object):
             datatype="GPBoolean",
             parameterType="Required",
             direction="Input",
-            category="Solve Scale"
+            category="Solve Scale",
         )
 
         dsf = arcpy.Parameter(
@@ -212,7 +213,24 @@ class Register_DEM2DEM(object):
         ir.value = True
 
         #         0    1    2    3    4    5    6    7    8    9     10   11   12   13   14   15
-        params = [fnd, aoi, min, dss, iss, dsf, dwf, dat, dlr, drmi, drt, imi, iat, idt, irt, ir]
+        params = [
+            fnd,
+            aoi,
+            min,
+            dss,
+            iss,
+            dsf,
+            dwf,
+            dat,
+            dlr,
+            drmi,
+            drt,
+            imi,
+            iat,
+            idt,
+            irt,
+            ir,
+        ]
         return params
 
     def isLicensed(self):
@@ -230,8 +248,12 @@ class Register_DEM2DEM(object):
         parameter.  This method is called after internal validation."""
         if parameters[5].value and parameters[6].value:
             if parameters[5].value <= parameters[6].value:
-                parameters[5].setErrorMessage("Strong filter size must be larger than weak filter size")
-                parameters[6].setErrorMessage("Weak filter size must be smaller than large filter size")
+                parameters[5].setErrorMessage(
+                    "Strong filter size must be larger than weak filter size"
+                )
+                parameters[6].setErrorMessage(
+                    "Weak filter size must be smaller than large filter size"
+                )
         return
 
     def getLayerPath(self, layer):
@@ -277,43 +299,49 @@ class Register_DEM2DEM(object):
                 # Handle multiple lines
                 for temp_line in temp.splitlines():
                     # Progress bar
-                    if ("PREPROCESSING DATA" in temp_line):
-                        arcpy.SetProgressorLabel("Step 1/4: Prepping AOI and Foundation Data")
+                    if "PREPROCESSING DATA" in temp_line:
+                        arcpy.SetProgressorLabel(
+                            "Step 1/4: Prepping AOI and Foundation Data"
+                        )
                         arcpy.SetProgressorPosition()
-                    if ("BEGINNING COARSE REGISTRATION" in temp_line):
-                        arcpy.SetProgressorLabel("Step 2/4: Solving Coarse Registration")
+                    if "BEGINNING COARSE REGISTRATION" in temp_line:
+                        arcpy.SetProgressorLabel(
+                            "Step 2/4: Solving Coarse Registration"
+                        )
                         arcpy.SetProgressorPosition()
-                    if ("BEGINNING FINE REGISTRATION" in temp_line):
+                    if "BEGINNING FINE REGISTRATION" in temp_line:
                         arcpy.SetProgressorLabel("Step 3/4: Solving Fine Registration")
                         arcpy.SetProgressorPosition()
-                    if ("APPLYING REGISTRATION" in temp_line):
-                        arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
+                    if "APPLYING REGISTRATION" in temp_line:
+                        arcpy.SetProgressorLabel(
+                            "Step 4/4: Applying Registration to AOI Data"
+                        )
                         arcpy.SetProgressorPosition()
 
                     # Messaging
-                    if ("- INFO -" in temp_line):
+                    if "- INFO -" in temp_line:
                         # Change paths to local
-                        if (f"{fnd_dir}/fnd" in temp_line):
+                        if f"{fnd_dir}/fnd" in temp_line:
                             idx = temp_line.find(f"{fnd_dir}/fnd")
-                            temp_path = os.path.join(fnd_dir, temp_line[idx+10:])
+                            temp_path = os.path.join(fnd_dir, temp_line[idx + 10 :])
                             temp_path = os.path.normpath(temp_path)
                             temp_line = temp_line[0:idx] + temp_path
-                        elif (f"{aoi_dir}/aoi" in temp_line):
+                        elif f"{aoi_dir}/aoi" in temp_line:
                             idx = temp_line.find(f"{aoi_dir}/aoi")
-                            temp_path = os.path.join(aoi_dir, temp_line[idx+10:])
+                            temp_path = os.path.join(aoi_dir, temp_line[idx + 10 :])
                             temp_path = os.path.normpath(temp_path)
                             temp_line = temp_line[0:idx] + temp_path
-                        elif ("/data" in temp_line):
+                        elif "/data" in temp_line:
                             idx = temp_line.find("/data")
-                            temp_path = os.path.join(fnd_dir, temp_line[idx+6:])
+                            temp_path = os.path.join(fnd_dir, temp_line[idx + 6 :])
                             temp_path = os.path.normpath(temp_path)
                             temp_line = temp_line[0:idx] + temp_path
                         arcpy.AddMessage(temp_line)
-                    if ("- WARNING -" in temp_line):
+                    if "- WARNING -" in temp_line:
                         arcpy.AddWarning(temp_line)
 
                     # Output file location
-                    if ("Registration has been applied to" in temp_line):
+                    if "Registration has been applied to" in temp_line:
                         idx = temp_line.find("registration_")
                         reg_file = os.path.join(aoi_dir, temp_line[idx:])
                         reg_file = os.path.normpath(reg_file)
@@ -321,12 +349,13 @@ class Register_DEM2DEM(object):
         if reg_file is not None:
             _, ext = os.path.splitext(reg_file)
             if ext == ".tif":
-                aprx = arcpy.mp.ArcGISProject('CURRENT')
+                aprx = arcpy.mp.ArcGISProject("CURRENT")
                 activeMap = aprx.activeMap
                 arcpy.env.addOutputsToMap = True
                 if activeMap is not None:
                     activeMap.addDataFromPath(reg_file)
         return
+
 
 class Register_MultiType(object):
     def __init__(self):
@@ -349,7 +378,7 @@ class Register_MultiType(object):
             name="aoi_file",
             datatype="DEFile",
             parameterType="Required",
-            direction="Input"
+            direction="Input",
         )
 
         min = arcpy.Parameter(
@@ -367,7 +396,7 @@ class Register_MultiType(object):
             datatype="GPBoolean",
             parameterType="Required",
             direction="Input",
-            category="Solve Scale"
+            category="Solve Scale",
         )
         iss = arcpy.Parameter(
             displayName="ICP Registration",
@@ -375,7 +404,7 @@ class Register_MultiType(object):
             datatype="GPBoolean",
             parameterType="Required",
             direction="Input",
-            category="Solve Scale"
+            category="Solve Scale",
         )
 
         dsf = arcpy.Parameter(
@@ -468,13 +497,12 @@ class Register_MultiType(object):
             category="ICP Registration Options",
         )
 
-
         # Foundation data file
         # fnd.value = "E:\dev\codem\demo\Foundation-PointCloud.laz"
-        fnd.filter.list = ['las', 'laz', 'bpf', 'ply', 'obj', 'tif', 'tiff']
+        fnd.filter.list = ["las", "laz", "bpf", "ply", "obj", "tif", "tiff"]
         # AOI data file
         # aoi.value = "E:\dev\codem\demo\AOI-Mesh.ply"
-        aoi.filter.list = ['las', 'laz', 'bpf', 'ply', 'obj', 'tif', 'tiff']
+        aoi.filter.list = ["las", "laz", "bpf", "ply", "obj", "tif", "tiff"]
 
         # Minimum pipeline resolution
         # min.value = 2.0
@@ -531,7 +559,24 @@ class Register_MultiType(object):
         ir.value = True
 
         #         0    1    2    3    4    5    6    7    8    9     10   11   12   13   14   15
-        params = [fnd, aoi, min, dss, iss, dsf, dwf, dat, dlr, drmi, drt, imi, iat, idt, irt, ir]
+        params = [
+            fnd,
+            aoi,
+            min,
+            dss,
+            iss,
+            dsf,
+            dwf,
+            dat,
+            dlr,
+            drmi,
+            drt,
+            imi,
+            iat,
+            idt,
+            irt,
+            ir,
+        ]
         return params
 
     def isLicensed(self):
@@ -549,56 +594,70 @@ class Register_MultiType(object):
         """Modify the messages created by internal validation for each tool
         parameter.  This method is called after internal validation."""
 
-        #Strong and weak filter size check
+        # Strong and weak filter size check
         if parameters[5].value and parameters[6].value:
             if parameters[5].value <= parameters[6].value:
-                parameters[5].setErrorMessage("Strong filter size must be larger than weak filter size")
-                parameters[6].setErrorMessage("Weak filter size must be smaller than large filter size")
-        
-        #Check if input DEMs have equal X and Y cell size values
+                parameters[5].setErrorMessage(
+                    "Strong filter size must be larger than weak filter size"
+                )
+                parameters[6].setErrorMessage(
+                    "Weak filter size must be smaller than large filter size"
+                )
 
-        #first make sure both params are input
+        # Check if input DEMs have equal X and Y cell size values
+
+        # first make sure both params are input
         if parameters[0].value and parameters[1].value:
-            #get path
-            fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/")
-            aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/")
+            # get path
+            fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(
+                os.sep, "/"
+            )
+            aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(
+                os.sep, "/"
+            )
 
-            inputs_list =[fnd_full_path, aoi_full_path]
-            #check for both FND and AOI
+            inputs_list = [fnd_full_path, aoi_full_path]
+            # check for both FND and AOI
             for index, input_file in enumerate(inputs_list):
-                #analysis can only be done with raster/DEM input
-                if os.path.splitext(input_file)[-1] in {'.tif', '.tiff'}:
-                    #see number of bands in raster (Valid DEMs only have 1)
+                # analysis can only be done with raster/DEM input
+                if os.path.splitext(input_file)[-1] in {".tif", ".tiff"}:
+                    # see number of bands in raster (Valid DEMs only have 1)
                     raster_description = arcpy.Describe(input_file)
-                   
-                    #set warning (tool can still be run) if more than one band
+
+                    # set warning (tool can still be run) if more than one band
                     if raster_description.bandCount != 1:
                         parameters[index].setWarningMessage(
-                        "Warning: Input DEM has more than one band in "
-                        f"{os.path.basename(input_file)}. "
-                        "The tool will not run properly with the "
-                        "input data as is. Consider regenerating input DEM"
+                            "Warning: Input DEM has more than one band in "
+                            f"{os.path.basename(input_file)}. "
+                            "The tool will not run properly with the "
+                            "input data as is. Consider regenerating input DEM"
                         )
 
-                    #need to access detail of Band1 (or only band for DEMs)
+                    # need to access detail of Band1 (or only band for DEMs)
 
-                    #first get band name
+                    # first get band name
                     arcpy.env.workspace = input_file
                     bands_list = arcpy.ListRasters()
-                    #join only band to get band description
+                    # join only band to get band description
                     # Refer to code sample for accessing Raster Band Properties: https://pro.arcgis.com/en/pro-app/2.9/arcpy/functions/raster-band-properties.htm
-                    band_description = arcpy.Describe(os.path.join(input_file, bands_list[0]))
-                        
-                    #if Y does not equal X, it can't happen!
-                    if not math.isclose(band_description.meanCellHeight, band_description.meanCellWidth, abs_tol=1e-5):
+                    band_description = arcpy.Describe(
+                        os.path.join(input_file, bands_list[0])
+                    )
+
+                    # if Y does not equal X, it can't happen!
+                    if not math.isclose(
+                        band_description.meanCellHeight,
+                        band_description.meanCellWidth,
+                        abs_tol=1e-5,
+                    ):
                         parameters[index].setErrorMessage(
-                        "Error: X and Y cell sizes are not equal in "
-                        f"{os.path.basename(input_file)}. "
-                        "The tool will not run with the input data as is. "
-                        "Consider reprojecting input DEM"
-                        f" X = {band_description.meanCellWidth}, Y = {band_description.meanCellHeight}"
+                            "Error: X and Y cell sizes are not equal in "
+                            f"{os.path.basename(input_file)}. "
+                            "The tool will not run with the input data as is. "
+                            "Consider reprojecting input DEM"
+                            f" X = {band_description.meanCellWidth}, Y = {band_description.meanCellHeight}"
                         )
-                       
+
         return
 
     def execute(self, parameters, messages):
@@ -612,12 +671,10 @@ class Register_MultiType(object):
 
         arcpy.SetProgressor("step", "Registering AOI to Foundation", 0, 5)
 
-        kwargs = {parameter.name.upper(): parameter.value for parameter in parameters[2:]}
-        codem_run_config = codem.CodemRunConfig(
-            fnd_full_path,
-            aoi_full_path,
-            **kwargs
-        )
+        kwargs = {
+            parameter.name.upper(): parameter.value for parameter in parameters[2:]
+        }
+        codem_run_config = codem.CodemRunConfig(fnd_full_path, aoi_full_path, **kwargs)
         config = dataclasses.asdict(codem_run_config)
 
         arcpy.SetProgressorLabel("Step 1/4: Prepping AOI and Foundation Data")
@@ -637,12 +694,14 @@ class Register_MultiType(object):
 
         arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
         arcpy.SetProgressorPosition()
-        reg_file = codem.apply_registration(fnd_obj, aoi_obj, icp_reg, config, output_format='las')
+        reg_file = codem.apply_registration(
+            fnd_obj, aoi_obj, icp_reg, config, output_format="las"
+        )
 
         if not os.path.exists(reg_file):
             arcpy.AddError("Registration file not generated")
             return None
-        aprx = arcpy.mp.ArcGISProject('CURRENT')
+        aprx = arcpy.mp.ArcGISProject("CURRENT")
         activeMap = aprx.activeMap
         arcpy.env.addOutputsToMap = True
         if activeMap is not None:
