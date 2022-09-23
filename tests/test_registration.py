@@ -5,11 +5,8 @@ from typing import TYPE_CHECKING
 import codem
 import pytest
 
-if TYPE_CHECKING:
-    from codem.preprocessing.preprocess import GeoData
 
-
-def test_basic_tif_registration(tif_fnd: GeoData, tif_aoi: GeoData) -> None:
+def test_basic_tif_registration(tif_fnd: str, tif_aoi: str) -> None:
     codem_run_config = codem.CodemRunConfig(tif_fnd, tif_aoi)
     config = dataclasses.asdict(codem_run_config)
 
