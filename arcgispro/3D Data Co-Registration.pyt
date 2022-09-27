@@ -675,6 +675,7 @@ class Register_MultiType(object):
         fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/")
         aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/")
         aoi_file_extension = os.path.splitext(aoi_full_path)[-1]
+
         arcpy.SetProgressor("step", "Registering AOI to Foundation", 0, 5)
 
         kwargs = {
@@ -702,11 +703,11 @@ class Register_MultiType(object):
         arcpy.SetProgressorPosition()
         reg_file = codem.apply_registration(
             fnd_obj, aoi_obj, icp_reg, config, output_format=aoi_file_extension[1:]
+
         )
 
         if not os.path.exists(reg_file):
             arcpy.AddError("Registration file not generated")
-            arcpy.AddError(reg_file)
             return None
         aprx = arcpy.mp.ArcGISProject("CURRENT")
         activeMap = aprx.activeMap
@@ -719,6 +720,7 @@ class Register_MultiType(object):
                 arcpy.AddMessage(
                     f"File type {aoi_file_extension} cannot be visualized in ArcGIS Pro. Consider converting AOI or visualizing in other software."
                 )
+
         else:
             arcpy.AddWarning("activeMap is None")
         return None
