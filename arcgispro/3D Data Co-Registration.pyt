@@ -675,7 +675,7 @@ class Register_MultiType(object):
 
         dsm_filetypes = codem.lib.resources.dsm_filetypes
         pcloud_filetypes = codem.lib.resources.pcloud_filetypes
-        mesh_filetype = codem.lib.resources.mesh_filetypes
+        mesh_filetypes = codem.lib.resources.mesh_filetypes
 
         # create mapping of codem supported inputs vs. ArcGIS supported outputs
         mapping = {dsm_filetype: ".tif" for dsm_filetype in dsm_filetypes}
