@@ -17,6 +17,7 @@ import pathlib
 import time
 from typing import Any
 from typing import Dict
+from typing import Optional
 from typing import Tuple
 
 import enlighten
@@ -50,24 +51,26 @@ class CodemRunConfig:
     ICP_SOLVE_SCALE: bool = True
     VERBOSE: bool = False
     ICP_SAVE_RESIDUALS: bool = False
-    OUTPUT_DIR: str = dataclasses.field(init=False)
+    OUTPUT_DIR: Optional[str] = None
 
     def __post_init__(self) -> None:
         # set output directory
-        current_time = time.localtime(time.time())
-        timestamp = "%d-%02d-%02d_%02d-%02d-%02d" % (
-            current_time.tm_year,
-            current_time.tm_mon,
-            current_time.tm_mday,
-            current_time.tm_hour,
-            current_time.tm_min,
-            current_time.tm_sec,
-        )
-        output_dir = os.path.join(
-            os.path.dirname(self.AOI_FILE), f"registration_{timestamp}"
-        )
-        os.mkdir(output_dir)
-        self.OUTPUT_DIR = os.path.abspath(output_dir)
+        if self.OUTPUT_DIR is None:
+            current_time = time.localtime(time.time())
+            timestamp = "%d-%02d-%02d_%02d-%02d-%02d" % (
+                current_time.tm_year,
+                current_time.tm_mon,
+                current_time.tm_mday,
+                current_time.tm_hour,
+                current_time.tm_min,
+                current_time.tm_sec,
+            )
+
+            output_dir = os.path.join(
+                os.path.dirname(self.AOI_FILE), f"registration_{timestamp}"
+            )
+            os.mkdir(output_dir)
+            self.OUTPUT_DIR = os.path.abspath(output_dir)
 
         # validate attributes
         if not os.path.exists(self.FND_FILE):
