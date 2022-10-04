@@ -647,11 +647,13 @@ class Register_MultiType(object):
                         os.path.join(input_file, bands_list[0])
                     )
 
-                    # if Y does not equal X, it can't happen!
+                    # CODEM requires raster cell sizes to be within 1e-5
+                    # however arcpy determines different cells sizes from gdal 
+                    # so we apply a more forgiving tolerance as a smoke-screen check for ArcGIS users
                     if not math.isclose(
                         band_description.meanCellHeight,
                         band_description.meanCellWidth,
-                        abs_tol=1e-5,
+                        rel_tol=1e-2,
                     ):
                         parameters[index].setErrorMessage(
                             "Error: X and Y cell sizes are not equal in "
@@ -710,11 +712,11 @@ class Register_MultiType(object):
         arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
         arcpy.SetProgressorPosition()
         reg_file = codem.apply_registration(
-            fnd_obj, aoi_obj, icp_reg, config, output_format=mapping[aoi_file_extension]
+            fnd_obj, aoi_obj, icp_reg, config, output_format=mapping[aoi_file_extension].lstrip(".")
         )
 
         if not os.path.exists(reg_file):
-            arcpy.AddError("Registration file not generated")
+            arcpy.AddError(f"Registration file '{reg_file}' not generated")
             return None
         aprx = arcpy.mp.ArcGISProject("CURRENT")
         activeMap = aprx.activeMap
