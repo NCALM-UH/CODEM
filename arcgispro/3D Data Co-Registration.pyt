@@ -1,7 +1,6 @@
 import os
 import json
 import arcpy
-import itertools
 import subprocess
 import pdal
 import codem
