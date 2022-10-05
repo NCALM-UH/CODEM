@@ -90,8 +90,10 @@ class ApplyRegistration:
         in_name = os.path.basename(self.aoi_file)
         root, ext = os.path.splitext(in_name)
         if output_format is not None:
-            ext = f".{output_format}"
-        out_name = root + "_registered" + ext
+            ext = (
+                output_format if output_format.startswith(".") else f".{output_format}"
+            )
+        out_name = f"{root}_registered{ext}"
         self.out_name: str = os.path.join(self.config["OUTPUT_DIR"], out_name)
 
     def get_registration_transformation(
