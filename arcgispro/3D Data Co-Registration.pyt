@@ -558,24 +558,23 @@ class Register_MultiType(object):
         # Robust ICP option
         ir.value = True
 
-        #         0    1    2    3    4    5    6    7    8    9     10   11   12   13   14   15
         params = [
-            fnd,
-            aoi,
-            min,
-            dss,
-            iss,
-            dsf,
-            dwf,
-            dat,
-            dlr,
-            drmi,
-            drt,
-            imi,
-            iat,
-            idt,
-            irt,
-            ir,
+            fnd,  # 0
+            aoi,  # 1
+            min,  # 2
+            dss,  # 3
+            iss,  # 4
+            dsf,  # 5
+            dwf,  # 6
+            dat,  # 7
+            dlr,  # 8
+            drmi,  # 9
+            drt,  # 10
+            imi,  # 11
+            iat,  # 12
+            idt,  # 13
+            irt,  # 14
+            ir,  # 15
         ]
         return params
 
@@ -595,14 +594,17 @@ class Register_MultiType(object):
         parameter.  This method is called after internal validation."""
 
         # Strong and weak filter size check
-        if parameters[5].value and parameters[6].value:
-            if parameters[5].value <= parameters[6].value:
-                parameters[5].setErrorMessage(
-                    "Strong filter size must be larger than weak filter size"
-                )
-                parameters[6].setErrorMessage(
-                    "Weak filter size must be smaller than large filter size"
-                )
+        if (
+            parameters[5].value
+            and parameters[6].value
+            and parameters[5].value <= parameters[6].value
+        ):
+            parameters[5].setErrorMessage(
+                "Strong filter size must be larger than weak filter size"
+            )
+            parameters[6].setErrorMessage(
+                "Weak filter size must be smaller than large filter size"
+            )
 
         # Check if input DEMs have equal X and Y cell size values
 
@@ -644,11 +646,13 @@ class Register_MultiType(object):
                         os.path.join(input_file, bands_list[0])
                     )
 
-                    # if Y does not equal X, it can't happen!
+                    # CODEM requires raster cell sizes to be within 1e-5
+                    # however arcpy determines different cells sizes from gdal 
+                    # so we apply a more forgiving tolerance as a smoke-screen check for ArcGIS users
                     if not math.isclose(
                         band_description.meanCellHeight,
                         band_description.meanCellWidth,
-                        abs_tol=1e-5,
+                        rel_tol=1e-2,
                     ):
                         parameters[index].setErrorMessage(
                             "Error: X and Y cell sizes are not equal in "
@@ -668,6 +672,18 @@ class Register_MultiType(object):
 
         fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/")
         aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/")
+        aoi_file_extension = os.path.splitext(aoi_full_path)[-1]
+
+        dsm_filetypes = codem.lib.resources.dsm_filetypes
+        pcloud_filetypes = codem.lib.resources.pcloud_filetypes
+        mesh_filetypes = codem.lib.resources.mesh_filetypes
+
+        # create mapping of codem supported inputs vs. ArcGIS supported outputs
+        mapping = {dsm_filetype: ".tif" for dsm_filetype in dsm_filetypes}
+        for pcloud_filetype in pcloud_filetypes:
+            mapping[pcloud_filetype] = ".las"
+        for mesh_filetype in mesh_filetypes:
+            mapping[mesh_filetype] = ".obj"
 
         arcpy.SetProgressor("step", "Registering AOI to Foundation", 0, 5)
 
@@ -695,18 +711,23 @@ class Register_MultiType(object):
         arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
         arcpy.SetProgressorPosition()
         reg_file = codem.apply_registration(
-            fnd_obj, aoi_obj, icp_reg, config, output_format="las"
+            fnd_obj, aoi_obj, icp_reg, config, output_format=mapping[aoi_file_extension].lstrip(".")
         )
 
         if not os.path.exists(reg_file):
-            arcpy.AddError("Registration file not generated")
+            arcpy.AddError(f"Registration file '{reg_file}' not generated")
             return None
         aprx = arcpy.mp.ArcGISProject("CURRENT")
         activeMap = aprx.activeMap
         arcpy.env.addOutputsToMap = True
-        if activeMap is not None:
-            activeMap.addDataFromPath(reg_file)
-            arcpy.AddMessage("ActiveMap added las file")
-        else:
+        if activeMap is None:
             arcpy.AddWarning("activeMap is None")
+        elif aoi_file_extension in mesh_filetypes:
+            arcpy.AddWarning(
+                f"File type {aoi_file_extension} cannot be visualized in ArcGIS Pro. "
+                "Consider converting AOI or visualizing in other software."
+            )
+        else:
+            activeMap.addDataFromPath(reg_file)
+            arcpy.AddMessage(f"ActiveMap added {aoi_file_extension} file")
         return None
