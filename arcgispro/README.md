@@ -22,7 +22,7 @@ To add the codem package to the ArcGIS toolbox, there are a number of steps to b
 1. Launch the ArcGIS Python Command Prompt
 
     ![python_command_prompt](images/python_cmd_prompt.png)
-1. Enter the following command, where the argument to `--file` is the file-path copied in the previous step.  This command will have significant console output, and may contain warnings and some errors, that is okay.
+1. Enter the following command, where the argument to `--file` is the file-path copied in the previous step.  This command will have significant console output, and may contain warnings and some errors, that is okay.  Upon completion, close the command prompt.
 
     ```doscon
     (arcgispro-py3) C:\Users\ogi\AppData\Local\Programs\ArcGIS\Pro\bin\Python\envs\arcgispro-py3>conda create \
@@ -33,13 +33,13 @@ To add the codem package to the ArcGIS toolbox, there are a number of steps to b
 1. Open ArcGIS Pro, go to the Python tab
 
     ![arcgis_python_envs](images/arcgis_python_envs.png)
-1. Press the "Manage Button" and then select the newly created `neggs` environment
+1. Press the "Manage Environment" button and then select the newly created `neggs` environment, and select OK.
 
     ![arcgis_select_neggs](images/arcgis_select_neggs.png)
 1. Close ArcGIS, and Open the Python Command Prompt again, and run the following command, where the path is the location of the CODEM download from the beginning
 
     ```doscon
-    (neggs) C:\Users\ogi\AppData\Local\Programs\ArcGIS\Pro\bin\Python\envs\neggs>pip install \
+    (neggs) C:\Users\ogi\AppData\Local\Programs\ArcGIS\Pro\bin\Python\envs\neggs>pip install --use-feature=in-tree-build \
     "C:\Users\ogi\Downloads\CODEM-main"
     ```
 
