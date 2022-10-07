@@ -30,6 +30,8 @@ disallow_incomplete_defs = true
 module = [
   "cv2",
   "enlighten",
+  "matplotlib",
+  "matplotlib.pyplot",
   "matplotlib.tri",
   "pdal",
   "rasterio",
