@@ -2,7 +2,8 @@
 name = "codem"
 requires-python = ">=3.7"
 description = "A package for co-registering geospatial data"
-license = { file = "LICENSE" }
+readme = "readme.md"
+license = { text = "Apache-2.0" }
 authors = [
   { name = "Preston Hartzell", email = "pjhartzell@uh.edu"},
   { name = "Jesse Shanahan" },
@@ -22,7 +23,7 @@ classifiers = [
 dependencies = [
   "typing-extensions"
 ]
-dynamic = ["version", "readme"]
+dynamic = ["version"]
 
 [project.urls]
 homepage = "https://github.com/NCALM-UH/CODEM"
@@ -34,7 +35,6 @@ zip-safe = false
 
 [tool.setuptools.dynamic]
 version = { attr = "codem.__version__" }
-readme = { file = ["readme.md"] }
 
 [build-system]
 requires = ["setuptools>=64.0"]
