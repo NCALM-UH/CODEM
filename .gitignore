@@ -15,3 +15,5 @@ arcgis/*
 !arcgis/*pdf
 
 .DS_Store
+
+tests/data/temporary
