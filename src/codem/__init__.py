@@ -1,3 +1,5 @@
+__version__ = "0.22.0"
+
 import codem.lib.log as log
 import codem.lib.resources as resources
 import codem.main
