@@ -43,6 +43,7 @@ def manipulate_raster(
 
 
 def dem_aoi(tmp_location: str, dem_foundation: str, aoi_shapefile: str) -> str:
+    os.makedirs(tmp_location, exist_ok=True)
     output_file = tempfile.NamedTemporaryFile(
         dir=tmp_location, suffix=".tif", delete=False
     ).name

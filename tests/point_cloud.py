@@ -85,6 +85,7 @@ def manipulate_pc(
 
 
 def pc_aoi(tmp_location: str, pc_foundation: str, aoi_shapefile: str) -> str:
+    os.makedirs(tmp_location, exist_ok=True)
     output_file = tempfile.NamedTemporaryFile(
         dir=tmp_location, suffix=".laz", delete=False
     ).name
