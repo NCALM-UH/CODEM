@@ -1,3 +1,48 @@
+[project]
+name = "codem"
+requires-python = ">=3.7"
+description = "A package for co-registering geospatial data"
+readme = "readme.md"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "Preston Hartzell", email = "pjhartzell@uh.edu"},
+  { name = "Jesse Shanahan" },
+  { name = "Bahirah Adewunmi" }
+]
+maintainers = [
+    { name = "Ognyan Moore", email = "ogi@hobu.co" }
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Topic :: Scientific/Engineering :: GIS",
+  "Topic :: Scientific/Engineering :: Image Processing"
+]
+dependencies = [
+  "typing-extensions"
+]
+dynamic = ["version"]
+
+[project.urls]
+homepage = "https://github.com/NCALM-UH/CODEM"
+repository = "https://github.com/NCALM-UH/CODEM"
+
+[tool.setuptools]
+package-dir = {"" =  "src"}
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = { attr = "codem.__version__" }
+
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+codem = "codem.main:main"
+
 [tool.black]
 line-length = 88
 target-version = ['py37']
