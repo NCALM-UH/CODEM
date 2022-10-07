@@ -2,8 +2,10 @@ name: main
 
 on:
   push:
-    branches-ignore: "dependabot/**"
+    branches-ignore:
+      - "dependabot/**"
   pull_request:
+    types: [opened, reopened]
     paths-ignore:
       - '**.md'
 
