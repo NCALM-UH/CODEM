@@ -13,14 +13,12 @@ import argparse
 import dataclasses
 import logging
 import os
-import pathlib
 import time
 from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Tuple
 
-import enlighten
 import yaml
 from codem.lib.log import Log
 from codem.preprocessing.preprocess import GeoData
@@ -29,6 +27,11 @@ from codem.registration import ApplyRegistration
 from codem.registration import DsmRegistration
 from codem.registration import IcpRegistration
 from distutils.util import strtobool
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.progress import Progress
+from rich.progress import SpinnerColumn
+from rich.progress import TimeElapsedColumn
 
 
 @dataclasses.dataclass
@@ -270,73 +273,66 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
     return dataclasses.asdict(config)
 
 
-def run_console(config: Dict[str, Any]) -> None:
+def run_console(
+    config: Dict[str, Any], logger: logging.Logger, console: Console
+) -> None:
     """
-    Preprocesses and registers the provided data
+    Preprocess and register the provided data
 
     Parameters
     ----------
     config: dict
         Dictionary of configuration parameters
     """
-    logger = logging.getLogger(__name__)
 
-    manager = enlighten.get_manager()
-    status = manager.status_bar(
-        status_format="CODEM{fill}Stage: {stage}{fill}{elapsed}",
-        color="bold_underline_bold_bright_blue",
-        justify=enlighten.Justify.CENTER,
-        stage="Initializing",
-    )
-    run_bar = manager.counter(
-        count=0,
-        total=100,
-        desc="Registration Process",
-        color="bright_blue",
-        justify=enlighten.Justify.CENTER,
-        position=1,
-    )
-    run_bar.refresh()
-    status.refresh()
+    with Progress(
+        SpinnerColumn(),
+        *Progress.get_default_columns(),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        registration = progress.add_task("Registration...", total=100)
 
-    # characters are problematic on a windows console
-    print("╔════════════════════════════════════╗")
-    print("║               CODEM                ║")
-    print("╚════════════════════════════════════╝")
-    print("║     AUTHORS: Preston Hartzell  &   ║")
-    print("║     Jesse Shanahan                 ║")
-    print("║     DEVELOPED FOR: CRREL/NEGGS     ║")
-    print("╚════════════════════════════════════╝")
-    print()
-    print("══════════════PARAMETERS══════════════")
-    for key in config:
-        logger.info(f"{key} = {config[key]}")
-    run_bar.update(1, force=True)
+        # characters are problematic on a windows console
+        console.print("╔════════════════════════════════════╗", justify="center")
+        console.print("║               CODEM                ║", justify="center")
+        console.print("╚════════════════════════════════════╝", justify="center")
+        console.print("║     AUTHORS: Preston Hartzell  &   ║", justify="center")
+        console.print("║     Jesse Shanahan                 ║", justify="center")
+        console.print("║     DEVELOPED FOR: CRREL/NEGGS     ║", justify="center")
+        console.print("╚════════════════════════════════════╝", justify="center")
+        console.print()
+        console.print("══════════════PARAMETERS══════════════", justify="center")
+        for key in config:
+            logger.info(f"{key} = {config[key]}")
+        progress.advance(registration, 1)
 
-    print("══════════PREPROCESSING DATA══════════")
-    status.update(stage="Preprocessing Inputs", force=True)
-    fnd_obj, aoi_obj = preprocess(config)
-    run_bar.update(7, force=True)
-    fnd_obj.prep()
-    run_bar.update(45)
-    aoi_obj.prep()
-    run_bar.update(4, force=True)
-    logger.info(f"Registration resolution has been set to: {fnd_obj.resolution} meters")
+        console.print("══════════PREPROCESSING DATA══════════", justify="center")
+        # status.update(stage="Preprocessing Inputs", force=True)
+        fnd_obj, aoi_obj = preprocess(config)
+        progress.advance(registration, 7)
+        fnd_obj.prep()
+        progress.advance(registration, 45)
+        aoi_obj.prep()
+        progress.advance(registration, 4)
+        logger.info(
+            f"Registration resolution has been set to: {fnd_obj.resolution} meters"
+        )
 
-    print("═════BEGINNING COARSE REGISTRATION═════")
-    status.update(stage="Performing Coarse Registration", force=True)
+        console.print("═════BEGINNING COARSE REGISTRATION═════", justify="center")
+        # status.update(stage="Performing Coarse Registration", force=True)
 
-    dsm_reg = coarse_registration(fnd_obj, aoi_obj, config)
-    run_bar.update(22)
+        dsm_reg = coarse_registration(fnd_obj, aoi_obj, config)
+        progress.advance(registration, 22)
 
-    print("══════BEGINNING FINE REGISTRATION══════")
-    status.update(stage="Performing Fine Registration", force=True)
-    icp_reg = fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
-    run_bar.update(16)
+        console.print("══════BEGINNING FINE REGISTRATION══════", justify="center")
+        # status.update(stage="Performing Fine Registration", force=True)
+        icp_reg = fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
+        progress.advance(registration, 16)
 
-    print("═════════APPLYING REGISTRATION═════════")
-    apply_registration(fnd_obj, aoi_obj, icp_reg, config)
-    run_bar.update(5, force=True)
+        console.print("═════════APPLYING REGISTRATION═════════", justify="center")
+        apply_registration(fnd_obj, aoi_obj, icp_reg, config)
+        progress.advance(registration, 5)
 
 
 def preprocess(config: Dict[str, Any]) -> Tuple[GeoData, GeoData]:
@@ -388,8 +384,11 @@ def apply_registration(
 def main() -> None:
     args = get_args()
     config = create_config(args)
-    Log(config)
-    run_console(config)
+    console = Console()
+    rich_handler = RichHandler(level="DEBUG", console=console, markup=False)
+    codem_logger = Log(config)
+    codem_logger.logger.addHandler(rich_handler)
+    run_console(config, codem_logger.logger, console)
 
 
 if __name__ == "__main__":
