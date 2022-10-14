@@ -288,10 +288,10 @@ class GeoData:
         self.normal_vectors = filtered_normals
 
     def _calculate_resolution(self) -> None:
-        ...
+        raise NotImplementedError
 
     def _create_dsm(self) -> None:
-        ...
+        raise NotImplementedError
 
     def prep(self) -> None:
         """
