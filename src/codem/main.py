@@ -245,8 +245,7 @@ def get_args() -> argparse.Namespace:
     ap.add_argument(
         "--verbose", "-v", type=str2bool, default=False, help="turn on verbose logging"
     )
-    args = ap.parse_args()
-    return args
+    return ap.parse_args()
 
 
 def create_config(args: argparse.Namespace) -> Dict[str, Any]:
