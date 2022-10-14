@@ -177,7 +177,7 @@ class DsmRegistration:
                 key_size=12,  # 20
                 multi_probe_level=1,  # 2
             )
-            desc_matcher = cv2.FlannBasedMatcher(index_params, dict())
+            desc_matcher = cv2.FlannBasedMatcher(index_params, {})
         else:
             desc_matcher = cv2.DescriptorMatcher_create(
                 cv2.DescriptorMatcher_BRUTEFORCE_HAMMING
@@ -187,10 +187,11 @@ class DsmRegistration:
         knn_matches = desc_matcher.knnMatch(self.aoi_desc, self.fnd_desc, k=2)
 
         # Lowe's ratio test to filter weak matches
-        good_matches = []
-        for m, n in knn_matches:  # m is closest, n is second closest
-            if m.distance < self.config["DSM_LOWES_RATIO"] * n.distance:
-                good_matches.append(m)
+        good_matches = [
+            m
+            for m, n in knn_matches
+            if m.distance < self.config["DSM_LOWES_RATIO"] * n.distance
+        ]
 
         self.logger.debug(f"{len(good_matches)} putative keypoint matches found.")
         self.putative_matches = good_matches
@@ -368,9 +369,7 @@ class DsmRegistration:
 
         z_ = np.asarray(z)
         xy_ = np.asarray(xy)
-        xyz = np.vstack((xy_.T, z_)).T
-
-        return xyz
+        return np.vstack((xy_.T, z_)).T
 
     def _get_rmse(self) -> None:
         """
@@ -568,12 +567,7 @@ class Scaled3dSimilarityTransform:
         else:
             T[:dim, :dim] = U @ np.diag(d) @ V
 
-        if estimate_scale:
-            # Eq. (41) and (42).
-            scale = 1.0 / src_demean.var(axis=0).sum() * (S @ d)
-        else:
-            scale = 1.0
-
+        scale = 1.0 / src_demean.var(axis=0).sum() * (S @ d) if estimate_scale else 1.0
         T[:dim, dim] = dst_mean - scale * (T[:dim, :dim] @ src_mean.T)
         T[:dim, :dim] *= scale
         return T
@@ -698,12 +692,7 @@ class Unscaled3dSimilarityTransform:
         else:
             T[:dim, :dim] = U @ np.diag(d) @ V
 
-        if estimate_scale:
-            # Eq. (41) and (42).
-            scale = 1.0 / src_demean.var(axis=0).sum() * (S @ d)
-        else:
-            scale = 1.0
-
+        scale = 1.0 / src_demean.var(axis=0).sum() * (S @ d) if estimate_scale else 1.0
         T[:dim, dim] = dst_mean - scale * (T[:dim, :dim] @ src_mean.T)
         T[:dim, :dim] *= scale
 

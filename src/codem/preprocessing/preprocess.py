@@ -117,7 +117,7 @@ class GeoData:
 
     @resolution.setter
     def resolution(self, value: float) -> None:
-        if not value > 0.0:
+        if value <= 0.0:
             raise ValueError("Resolution must be greater than 0")
         self._resolution = value
         return None
@@ -487,9 +487,13 @@ class PointCloud(GeoData):
         )
 
         # Scale matrix formatted for PDAL consumption
-        units_transform = "{} 0 0 0 0 {} 0 0 0 0 {} 0 0 0 0 1".format(
-            self.units_factor, self.units_factor, self.units_factor
+        units_transform = (
+            f"{self.units_factor} 0 0 0 "
+            f"0 {self.units_factor} 0 0 "
+            f"0 0 {self.units_factor} 0 "
+            "0 0 0 1"
         )
+
         file_handle, tmp_file = tempfile.mkstemp(suffix=".tif")
 
         pipe = [
@@ -578,9 +582,13 @@ class Mesh(GeoData):
         xyz["Z"] = vertices[:, 2]
 
         # Scale matrix formatted for PDAL consumption
-        units_transform = "{} 0 0 0 0 {} 0 0 0 0 {} 0 0 0 0 1".format(
-            self.units_factor, self.units_factor, self.units_factor
+        units_transform = (
+            f"{self.units_factor} 0 0 0 "
+            f"0 {self.units_factor} 0 0 "
+            f"0 0 {self.units_factor} 0 "
+            "0 0 0 1"
         )
+
         pipe = [
             self.file,
             {
@@ -664,6 +672,5 @@ def instantiate(config: dict, fnd: bool) -> GeoData:
         return Mesh(config, fnd)
     if os.path.splitext(file_path)[-1] in r.pcloud_filetypes:
         return PointCloud(config, fnd)
-    else:
-        logger.warning(f"File {file_path} has an unsupported type.")
-        raise NotImplementedError("File type not currently supported.")
+    logger.warning(f"File {file_path} has an unsupported type.")
+    raise NotImplementedError("File type not currently supported.")
