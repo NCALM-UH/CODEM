@@ -327,7 +327,7 @@ class IcpRegistration:
         else:
             x = np.linalg.inv(A.T @ A) @ A.T @ b
 
-        x[0:3] /= x[6]
+        x[:3] /= x[6]
 
         R = np.eye(3)
         T = np.zeros(3)
@@ -400,8 +400,6 @@ class IcpRegistration:
             x = np.linalg.inv(A.T @ weights @ A) @ A.T @ weights @ b
         else:
             x = np.linalg.inv(A.T @ A) @ A.T @ b
-
-        x = np.linalg.inv(A.T @ A) @ A.T @ b
 
         R = np.eye(3)
         T = np.zeros(3)

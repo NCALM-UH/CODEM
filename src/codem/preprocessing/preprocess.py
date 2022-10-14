@@ -86,7 +86,7 @@ class GeoData:
         self.logger = logging.getLogger(__name__)
         self.file = config["FND_FILE"] if fnd else config["AOI_FILE"]
         self.fnd = fnd
-        self.type = "undefined"
+        self._type = "undefined"
         self.nodata = None
         self.dsm = np.empty((0, 0), dtype=np.double)
         self.point_cloud = np.empty((0, 0), dtype=np.double)
@@ -104,12 +104,20 @@ class GeoData:
         self.strong_size = config["DSM_STRONG_FILTER"]
 
     @property
+    def type(self) -> str:
+        return self._type
+
+    @type.setter
+    def type(self, value: str) -> None:
+        self._type = value
+
+    @property
     def resolution(self) -> float:
         return self._resolution
 
     @resolution.setter
     def resolution(self, value: float) -> None:
-        if not value > 0.0:
+        if value <= 0.0:
             raise ValueError("Resolution must be greater than 0")
         self._resolution = value
         return None
@@ -288,10 +296,10 @@ class GeoData:
         self.normal_vectors = filtered_normals
 
     def _calculate_resolution(self) -> None:
-        ...
+        raise NotImplementedError
 
     def _create_dsm(self) -> None:
-        ...
+        raise NotImplementedError
 
     def prep(self) -> None:
         """
@@ -313,7 +321,7 @@ class GeoData:
         """Use this to show the raster"""
         import matplotlib.pyplot as plt
 
-        img = plt.imshow(self.infilled, cmap="gray")
+        plt.imshow(self.infilled, cmap="gray")
         if keypoints is not None:
             plt.scatter(
                 keypoints[:, 0], keypoints[:, 1], marker="s", color="orange", s=10.0
@@ -479,9 +487,13 @@ class PointCloud(GeoData):
         )
 
         # Scale matrix formatted for PDAL consumption
-        units_transform = "{} 0 0 0 0 {} 0 0 0 0 {} 0 0 0 0 1".format(
-            self.units_factor, self.units_factor, self.units_factor
+        units_transform = (
+            f"{self.units_factor} 0 0 0 "
+            f"0 {self.units_factor} 0 0 "
+            f"0 0 {self.units_factor} 0 "
+            "0 0 0 1"
         )
+
         file_handle, tmp_file = tempfile.mkstemp(suffix=".tif")
 
         pipe = [
@@ -570,9 +582,13 @@ class Mesh(GeoData):
         xyz["Z"] = vertices[:, 2]
 
         # Scale matrix formatted for PDAL consumption
-        units_transform = "{} 0 0 0 0 {} 0 0 0 0 {} 0 0 0 0 1".format(
-            self.units_factor, self.units_factor, self.units_factor
+        units_transform = (
+            f"{self.units_factor} 0 0 0 "
+            f"0 {self.units_factor} 0 0 "
+            f"0 0 {self.units_factor} 0 "
+            "0 0 0 1"
         )
+
         pipe = [
             self.file,
             {
@@ -656,6 +672,5 @@ def instantiate(config: dict, fnd: bool) -> GeoData:
         return Mesh(config, fnd)
     if os.path.splitext(file_path)[-1] in r.pcloud_filetypes:
         return PointCloud(config, fnd)
-    else:
-        logger.warning(f"File {file_path} has an unsupported type.")
-        raise NotImplementedError("File type not currently supported.")
+    logger.warning(f"File {file_path} has an unsupported type.")
+    raise NotImplementedError("File type not currently supported.")
