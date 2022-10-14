@@ -86,7 +86,7 @@ class GeoData:
         self.logger = logging.getLogger(__name__)
         self.file = config["FND_FILE"] if fnd else config["AOI_FILE"]
         self.fnd = fnd
-        self.type = "undefined"
+        self._type = "undefined"
         self.nodata = None
         self.dsm = np.empty((0, 0), dtype=np.double)
         self.point_cloud = np.empty((0, 0), dtype=np.double)
@@ -102,6 +102,14 @@ class GeoData:
         self.units = None
         self.weak_size = config["DSM_WEAK_FILTER"]
         self.strong_size = config["DSM_STRONG_FILTER"]
+
+    @property
+    def type(self) -> str:
+        return self._type
+
+    @type.setter
+    def type(self, value: str) -> None:
+        self._type = value
 
     @property
     def resolution(self) -> float:
