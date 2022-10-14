@@ -4,7 +4,6 @@ import warnings
 from typing import NamedTuple
 from typing import Optional
 
-import pytest
 from osgeo import gdal
 
 

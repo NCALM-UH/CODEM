@@ -3,7 +3,6 @@ import itertools
 import math
 import os
 import pathlib
-import tempfile
 
 import codem
 import pytest

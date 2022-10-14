@@ -1,4 +1,3 @@
-
 """
 DsmRegistration.py
 Project: CRREL-NEGGS University of Houston Collaboration
@@ -25,7 +24,6 @@ from typing import Tuple
 
 import cv2
 import numpy as np
-import numpy.typing as npt
 from codem.preprocessing.preprocess import GeoData
 from rasterio import Affine
 from skimage.measure import ransac
