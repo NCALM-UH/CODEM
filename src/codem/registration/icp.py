@@ -401,8 +401,6 @@ class IcpRegistration:
         else:
             x = np.linalg.inv(A.T @ A) @ A.T @ b
 
-        x = np.linalg.inv(A.T @ A) @ A.T @ b
-
         R = np.eye(3)
         T = np.zeros(3)
         R[0, 0] = np.cos(x[2]) * np.cos(x[1])
