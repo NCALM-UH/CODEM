@@ -1,0 +1,252 @@
+"""
+preprocess.py
+Project: CRREL-NEGGS University of Houston Collaboration
+Date: February 2021
+
+"""
+import json
+import os
+
+import pdal
+
+from typing import Optional
+
+import codem.lib.resources as r
+from typing_extensions import TypedDict
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
+pio.templates.default = "plotly_dark"
+
+from scipy.spatial import cKDTree
+
+import re
+
+def get_json(filename):
+    try:
+        with open(filename,'r') as f:
+            return f.read()
+    except:
+        return None
+
+
+def slugify(text):
+    """Adapted from https://stackoverflow.com/a/8366771/498396"""
+    text = text.lower()
+    return re.sub(r'[\W_]+', '-', text)
+
+
+
+class PointCloud:
+    """
+    A class for storing and preparing geospatial data
+
+    Parameters
+    ----------
+    config: dict
+        Dictionary of configuration options
+    fnd: bool
+        Whether the file is foundation data
+
+    """
+
+    def __init__(self, config: dict, key: str) -> None:
+        self.logger = config['log']
+        self.filename = config[key]
+        self.pipeline = self.open()
+        self.config = config
+
+        if len(self.pipeline.arrays) > 1:
+            raise  NotImplementedError("VCD between multiple views is not supported")
+        self.df = pd.DataFrame(self.pipeline.arrays[0])
+
+    def open(self):
+        filters = None
+
+        pipeline = get_json(self.filename)
+        if pipeline:
+            filters = pdal.Pipeline(pipeline)
+            self.logger.logger.info(f'Loaded JSON pipeline ')
+        else:
+            filters = pdal.Pipeline(self.filename)
+            self.logger.logger.info(f'Loaded {self.filename}')
+        filters |= pdal.Filter.reprojection(out_srs="EPSG:26915")
+        filters |= pdal.Filter.range(limits="Classification![7:7]")
+        filters |= pdal.Filter.range(limits="Classification![18:)")
+        filters |= pdal.Filter.range(limits="Classification![9:9]")
+        filters |= pdal.Filter.returns(groups="only")
+        filters |= pdal.Filter.elm(cell=20.0)
+        filters |= pdal.Filter.outlier(where="Classification!=7")
+        filters |= pdal.Filter.range(limits="Classification![7:7]")
+        filters |= pdal.Filter.assign(assignment="Classification[:]=1")
+        filters |= pdal.Filter.smrf()
+        self.pipeline = filters
+        filters.execute()
+        return filters
+
+
+    def extract_crs(self):
+        """Extract CRS from a PDAL pipeline for readers.las output as ESRI WKT1 for shapefile output"""
+
+        from pyproj import CRS
+        from pyproj.enums import WktVersion
+
+        metadata = self.pipeline.metadata['metadata']
+
+        if 'readers.las' in metadata:
+            wkt = metadata['readers.las']['comp_spatialreference']
+        elif 'readers.bpf' in metadata:
+            raise NotImplementedError
+        else:
+            wkt = ''
+
+        crs = CRS(wkt)
+        output = crs.to_wkt(WktVersion.WKT1_ESRI)
+        return output
+
+
+class VCD:
+
+    def __init__(self, before: PointCloud, after: PointCloud) -> None:
+        self.before = before
+        self.after = after
+        self.products = []
+        self.gh = before.config['GROUNDHEIGHT']
+
+    def compute_indexes(self):
+
+        after = self.after.df
+        before = self.before.df
+        gh = self.gh
+
+        tree2d = cKDTree(before[['X','Y']])
+        d2d, i2d = tree2d.query(after[['X','Y']], k=1)
+        tree3d = cKDTree(before[['X','Y','Z']])
+        d3d, i3d = tree3d.query(after[['X','Y','Z']], k=1)
+
+        after['dX2d'] = after.X - before.iloc[i2d].X.values
+        after['dY2d'] = after.Y - before.iloc[i2d].Y.values
+        after['dZ2d'] = after.Z - before.iloc[i2d].Z.values
+        after['dX3d'] = after.X - before.iloc[i3d].X.values
+        after['dY3d'] = after.Y - before.iloc[i3d].Y.values
+        after['dZ3d'] = after.Z - before.iloc[i3d].Z.values
+
+        after['d2'] = d2d
+        after['d3'] = d3d
+
+    def cluster(self):
+
+        after = self.after.df
+        before = self.before.df
+        gh = self.gh
+
+        array = after[(after.Classification!=2)&(after.d3>1)].to_records()
+        ng_clusters = pdal.Filter.cluster(min_points=30, tolerance=2.0).pipeline(array)
+        ng_clusters.execute()
+        ng_cluster_df = pd.DataFrame(ng_clusters.arrays[0])
+
+        p = self.make_product(ng_cluster_df.X,
+                              ng_cluster_df.Y,
+                              ng_cluster_df.ClusterID,
+                              'non-ground-clusters',
+                              description ="Non-ground Clusters",
+                              colorscale="IceFire")
+        self.products.append(p)
+
+
+        array = after[(after.Classification==2)&(after.d3>1)].to_records()
+        ground_clusters = pdal.Filter.cluster(min_points=30, tolerance=2.0).pipeline(array)
+        ground_clusters.execute()
+        ground_cluster_df = pd.DataFrame(ground_clusters.arrays[0])
+
+        p = self.make_product(ground_cluster_df.X,
+                              ground_cluster_df.Y,
+                              ground_cluster_df.ClusterID,
+                              'ground-clusters',
+                              description ="Ground Clusters",
+                              colorscale="IceFire")
+        self.products.append(p)
+
+    def make_products(self):
+        after = self.after.df
+        before = self.before.df
+        gh = self.gh
+
+
+        p = self.make_product(after.X, after.Y, after.dZ3d, 'before-after', description ="Before - After")
+        self.products.append(p)
+
+        p = self.make_product(after[after.d3<gh].X,
+                              after[after.d3<gh].Y,
+                              after[after.d3<gh].dZ3d,
+                              "within-1m-difference",
+                              "Points within 1m difference")
+        self.products.append(p)
+
+        p = self.make_product(after[after.d3>gh].X,
+                              after[after.d3>gh].Y,
+                              after[after.d3>gh].dZ3d,
+                              "more-than-1m-difference",
+                              "Points more than 1m difference")
+        self.products.append(p)
+
+        p = self.make_product(after[(after.Classification==2)&(after.d3>gh)].X,
+                              after[(after.Classification==2)&(after.d3>gh)].Y,
+                              after[(after.Classification==2)&(after.d3>gh)].dZ3d,
+                              "ground-more-than-1m-differences",
+                              "Ground points more than 1m difference")
+        self.products.append(p)
+
+        p = self.make_product(after[(after.Classification!=2)&(after.d3>gh)].X,
+             after[(after.Classification!=2)&(after.d3>gh)].Y,
+             after[(after.Classification!=2)&(after.d3>gh)].dZ3d,
+             'nonground-more-than-1m-differences')
+        self.products.append(p)
+
+    def make_product(self, x, y, z, title, description="", colorscale='RdBu'):
+        after = self.after.df
+        before = self.before.df
+
+        product = x.to_frame().join(y.to_frame()).join( z.to_frame())
+        product.title = title
+        product.z = z.name
+        product.slug = slugify(title)
+        product.description = description
+        product.colorscale = colorscale
+
+        return product
+
+    def plot(self):
+
+
+        after = self.after.df
+        before = self.before.df
+
+        def _plot(product):
+
+            try:
+                os.mkdir(os.path.join(self.before.config['OUTPUT_DIR'], "plots"))
+            except FileExistsError:
+                pass
+
+            outfile = os.path.join(self.before.config['OUTPUT_DIR'], "plots", product.slug) + '.png'
+
+            fig = go.Figure(layout_title_text = product.description,
+                            data=go.Scattergl(
+                                              x = product.X,
+                                              y = product.Y,
+                                              mode = 'markers',
+                                              marker=dict(
+                                                          color=product[product.z],
+                                                          colorscale=product.colorscale,
+                                                          colorbar=dict(thickness=20),
+                                              size=1) ))
+            fig.update_yaxes( scaleanchor = "x", scaleratio = 1,)
+            fig.update_layout( autosize=False, width=700, height=700,)
+            img = fig.to_image('png')
+            with open(outfile,'wb') as f:
+                f.write(img)
+
+        for p in self.products:
+            _plot(p)
+

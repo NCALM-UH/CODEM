@@ -42,6 +42,7 @@ build-backend = "setuptools.build_meta"
 
 [project.scripts]
 codem = "codem.main:main"
+vcd = "vcd.main:main"
 
 [tool.black]
 line-length = 88
