@@ -30,15 +30,6 @@ class Log:
         log_format = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
         )
-        if config["VERBOSE"]:
-            print_format = logging.Formatter(
-                "%(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
-            )
-        else:
-            print_format = logging.Formatter(
-                "%(asctime)s - %(levelname)s - %(message)s", "%H:%M:%S"
-            )
-
         file_handler = logging.FileHandler(
             os.path.join(config["OUTPUT_DIR"], "log.txt")
         )
