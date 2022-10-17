@@ -180,9 +180,12 @@ def run_console(
         console.print("══════════Computing indexes for comparison =====", justify="center")
         v = VCD(before, after)
         v.compute_indexes()
+        progress.advance(registration, 7)
 
         console.print("══════════ Extracting differences ", justify="center")
         v.make_products()
+
+        progress.advance(registration, 45)
 
         console.print("══════════ Clustering ", justify="center")
         v.cluster()
@@ -194,19 +197,7 @@ def run_console(
         console.print("══════════ Rasterizing products ", justify="center")
         v.rasterize()
 
-        progress.advance(registration, 7)
-        #fnd_obj.prep()
-        progress.advance(registration, 45)
-        #aoi_obj.prep()
         progress.advance(registration, 4)
-
-        #console.print("═════BEGINNING COARSE REGISTRATION═════", justify="center")
-        # status.update(stage="Performing Coarse Registration", force=True)
-
-
-
-
-
 
 def main() -> None:
     args = get_args()

@@ -36,7 +36,7 @@ def get_json(filename):
 def slugify(text):
     """Adapted from https://stackoverflow.com/a/8366771/498396"""
     text = text.lower()
-    return re.sub(r'[\W_]+', '-', text)
+    return re.sub(r'[^0-9A-Za-z.]', '-', text)
 
 
 
@@ -115,6 +115,7 @@ class VCD:
         self.after = after
         self.products = []
         self.gh = before.config['GROUNDHEIGHT']
+        self.resolution = before.config['RESOLUTION']
 
     def compute_indexes(self):
 
@@ -143,7 +144,7 @@ class VCD:
         before = self.before.df
         gh = self.gh
 
-        array = after[(after.Classification!=2)&(after.d3>1)].to_records()
+        array = after[(after.Classification != 2) & (after.d3 > gh)].to_records()
         ng_clusters = pdal.Filter.cluster(min_points=30, tolerance=2.0).pipeline(array)
         ng_clusters.execute()
         ng_cluster_df = pd.DataFrame(ng_clusters.arrays[0])
@@ -151,13 +152,12 @@ class VCD:
         p = self.make_product(ng_cluster_df.X,
                               ng_cluster_df.Y,
                               ng_cluster_df.ClusterID,
-                              'non-ground-clusters',
-                              description ="Non-ground Clusters",
+                              description = f"Non-ground clusters greater than {gh:.2f} height",
                               colorscale="IceFire")
         self.products.append(p)
 
 
-        array = after[(after.Classification==2)&(after.d3>1)].to_records()
+        array = after[(after.Classification==2) & (after.d3 > gh)].to_records()
         ground_clusters = pdal.Filter.cluster(min_points=30, tolerance=2.0).pipeline(array)
         ground_clusters.execute()
         ground_cluster_df = pd.DataFrame(ground_clusters.arrays[0])
@@ -165,8 +165,7 @@ class VCD:
         p = self.make_product(ground_cluster_df.X,
                               ground_cluster_df.Y,
                               ground_cluster_df.ClusterID,
-                              'ground-clusters',
-                              description ="Ground Clusters",
+                              description = f"Ground clusters greater than {gh:.2f} height",
                               colorscale="IceFire")
         self.products.append(p)
 
@@ -174,47 +173,43 @@ class VCD:
         after = self.after.df
         before = self.before.df
         gh = self.gh
+        resolution = self.resolution
 
 
-        p = self.make_product(after.X, after.Y, after.dZ3d, 'before-after', description ="Before - After")
+        p = self.make_product(after.X, after.Y, after.dZ3d, description ="Before minus after")
         self.products.append(p)
 
         p = self.make_product(after[after.d3<gh].X,
                               after[after.d3<gh].Y,
                               after[after.d3<gh].dZ3d,
-                              "within-1m-difference",
-                              "Points within 1m difference")
+                              f"Points within {resolution:.2f}m difference")
         self.products.append(p)
 
         p = self.make_product(after[after.d3>gh].X,
                               after[after.d3>gh].Y,
                               after[after.d3>gh].dZ3d,
-                              "more-than-1m-difference",
-                              "Points more than 1m difference")
+                              f"Points more than {resolution:.2f}m difference")
         self.products.append(p)
 
         p = self.make_product(after[(after.Classification==2)&(after.d3>gh)].X,
                               after[(after.Classification==2)&(after.d3>gh)].Y,
                               after[(after.Classification==2)&(after.d3>gh)].dZ3d,
-                              "ground-more-than-1m-differences",
-                              "Ground points more than 1m difference")
+                              f"Ground points more than {resolution:.2f}m difference")
         self.products.append(p)
 
         p = self.make_product(after[(after.Classification!=2)&(after.d3>gh)].X,
              after[(after.Classification!=2)&(after.d3>gh)].Y,
              after[(after.Classification!=2)&(after.d3>gh)].dZ3d,
-             'nonground-more-than-1m-differences',
-             'Non-ground points more than 1m difference')
+             f'Non-ground points more than {resolution:.2f}m difference')
         self.products.append(p)
 
-    def make_product(self, x, y, z, title, description="", colorscale='RdBu'):
+    def make_product(self, x, y, z, description="", colorscale='RdBu'):
         after = self.after.df
         before = self.before.df
 
         product = x.to_frame().join(y.to_frame()).join( z.to_frame())
-        product.title = title
         product.z = z.name
-        product.slug = slugify(title)
+        product.slug = slugify(description)
         product.description = description
         product.colorscale = colorscale
 
