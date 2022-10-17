@@ -29,7 +29,8 @@ class VcdRunConfig:
     BEFORE: str
     AFTER: str
     SPACING: float = 0.43
-    GROUNDHEIGHT: float = 2.0
+    GROUNDHEIGHT: float = 1.0
+    RESOLUTION: float = 2.0
     VERBOSE: bool = False
     PLOT: bool = True
     OUTPUT_DIR: Optional[str] = None
@@ -102,7 +103,12 @@ def get_args() -> argparse.Namespace:
         default=VcdRunConfig.GROUNDHEIGHT,
         help="Ground filtering height",
     )
-
+    ap.add_argument(
+        "--resolution",
+        type=float,
+        default=VcdRunConfig.RESOLUTION,
+        help="Raster output resolution",
+    )
     ap.add_argument(
         "--plot",
         type=bool,
@@ -184,6 +190,9 @@ def run_console(
         if config['PLOT']:
             console.print("══════════ Plotting pictures =====", justify="center")
             v.plot()
+
+        console.print("══════════ Rasterizing products ", justify="center")
+        v.rasterize()
 
         progress.advance(registration, 7)
         #fnd_obj.prep()

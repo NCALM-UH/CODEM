@@ -8,6 +8,7 @@ import json
 import os
 
 import pdal
+import rasterio
 
 from typing import Optional
 
@@ -17,6 +18,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 pio.templates.default = "plotly_dark"
+
+import numpy.lib.recfunctions as rfn
 
 from scipy.spatial import cKDTree
 
@@ -200,7 +203,8 @@ class VCD:
         p = self.make_product(after[(after.Classification!=2)&(after.d3>gh)].X,
              after[(after.Classification!=2)&(after.d3>gh)].Y,
              after[(after.Classification!=2)&(after.d3>gh)].dZ3d,
-             'nonground-more-than-1m-differences')
+             'nonground-more-than-1m-differences',
+             'Non-ground points more than 1m difference')
         self.products.append(p)
 
     def make_product(self, x, y, z, title, description="", colorscale='RdBu'):
@@ -217,10 +221,6 @@ class VCD:
         return product
 
     def plot(self):
-
-
-        after = self.after.df
-        before = self.before.df
 
         def _plot(product):
 
@@ -249,4 +249,80 @@ class VCD:
 
         for p in self.products:
             _plot(p)
+
+
+    def rasterize(self):
+        resolution = self.before.config['RESOLUTION']
+        rasters_dir = os.path.join(self.before.config['OUTPUT_DIR'], "rasters")
+        summary_dir = os.path.join(self.before.config['OUTPUT_DIR'], "rasters", "summary")
+        products_dir = os.path.join(self.before.config['OUTPUT_DIR'], "rasters", "products")
+
+        try:
+            os.mkdir(rasters_dir)
+            os.mkdir(summary_dir)
+            os.mkdir(products_dir)
+        except FileExistsError:
+            pass
+
+
+
+        def _rasterize(product, output_type="mean"):
+
+            array = product.to_records()
+            array = rfn.rename_fields(array, {product.z: 'Z'})
+
+            outfile = os.path.join(products_dir, product.slug) + '.tif'
+
+            metadata = f"TIFFTAG_XRESOLUTION={resolution},TIFFTAG_YRESOLUTION={resolution},TIFFTAG_IMAGEDESCRIPTION={product.description}"
+            gdalopts = "MAX_Z_ERROR=0.01,COMPRESS=LERC_ZSTD,OVERVIEW_COMPRESS=LERC_ZSTD,BIGTIFF=YES"
+            pipeline = pdal.Writer.gdal(filename = outfile,
+                                        metadata = metadata,
+                                        gdalopts = gdalopts,
+                                        resolution = resolution).pipeline(array)
+            pipeline.execute()
+            return outfile
+
+        def _merge(rasters, output_type):
+
+            with rasterio.open(rasters[0]) as src0:
+                meta = src0.meta
+                descriptions = src0.descriptions
+
+
+            meta.update(count = len(rasters))
+            meta.update( compress="LERC_ZSTD",
+                         max_z_error=0.01,
+                         bigtiff="YES",
+                         overview_compress="LERC_ZSTD")
+
+
+            band_id = descriptions.index(output_type) + 1 # bands count from 1
+            outfile = os.path.join(summary_dir, output_type) + '.tif'
+
+            with rasterio.open(outfile, 'w', **meta) as dst:
+
+                for id, layer in enumerate(rasters, start=1):
+                    with rasterio.open(layer) as src:
+
+                        band_description = src.tags()['TIFFTAG_IMAGEDESCRIPTION']
+                        band = src.read(band_id)
+
+                        dst.write_band(id, band)
+                        dst.update_tags(band_id)
+                        dst.set_band_description(id, band_description)
+
+        rasters = []
+        for p in self.products:
+            rasters.append(_rasterize(p))
+
+        _merge(rasters, "idw")
+        _merge(rasters, "min")
+        _merge(rasters, "max")
+        _merge(rasters, "mean")
+        _merge(rasters, "count")
+
+
+
+
+
 
