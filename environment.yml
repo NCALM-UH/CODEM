@@ -13,3 +13,4 @@ dependencies:
   - typing-extensions
   - gdal
   - pyproj
+  - pyshp

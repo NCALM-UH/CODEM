@@ -31,6 +31,8 @@ from scipy.spatial import cKDTree
 
 import re
 
+
+
 def get_json(filename):
     try:
         with open(filename,'r') as f:
@@ -63,7 +65,7 @@ class PointCloud:
         self.logger = config['log']
         self.filename = config[key]
         self.config = config
-        self.srs = None
+        self.crs = None
         self.utm = None
         self.pipeline = self.open()
 
@@ -145,20 +147,7 @@ class PointCloud:
     def extract_crs(self):
         """Extract CRS from a PDAL pipeline for readers.las output as ESRI WKT1 for shapefile output"""
 
-        from pyproj import CRS
-        from pyproj.enums import WktVersion
-
-        metadata = self.pipeline.metadata['metadata']
-
-        if 'readers.las' in metadata:
-            wkt = metadata['readers.las']['comp_spatialreference']
-        elif 'readers.bpf' in metadata:
-            raise NotImplementedError
-        else:
-            wkt = ''
-
-        crs = CRS(wkt)
-        output = crs.to_wkt(WktVersion.WKT1_ESRI)
+        output = self.srs.to_wkt(WktVersion.WKT1_ESRI)
         return output
 
 
@@ -199,9 +188,9 @@ class VCD:
         gh = self.gh
 
         array = after[(after.Classification != 2) & (after.d3 > gh)].to_records()
-        ng_clusters = pdal.Filter.cluster(min_points=30, tolerance=2.0).pipeline(array)
-        ng_clusters.execute()
-        ng_cluster_df = pd.DataFrame(ng_clusters.arrays[0])
+        self.ng_clusters = pdal.Filter.cluster(min_points=30, tolerance=2.0).pipeline(array)
+        self.ng_clusters.execute()
+        ng_cluster_df = pd.DataFrame(self.ng_clusters.arrays[0])
 
         p = self.make_product(ng_cluster_df.X,
                               ng_cluster_df.Y,
@@ -212,9 +201,9 @@ class VCD:
 
 
         array = after[(after.Classification==2) & (after.d3 > gh)].to_records()
-        ground_clusters = pdal.Filter.cluster(min_points=30, tolerance=2.0).pipeline(array)
-        ground_clusters.execute()
-        ground_cluster_df = pd.DataFrame(ground_clusters.arrays[0])
+        self.ground_clusters = pdal.Filter.cluster(min_points=30, tolerance=2.0).pipeline(array)
+        self.ground_clusters.execute()
+        ground_cluster_df = pd.DataFrame(self.ground_clusters.arrays[0])
 
         p = self.make_product(ground_cluster_df.X,
                               ground_cluster_df.Y,
@@ -371,8 +360,6 @@ class VCD:
         _merge(rasters, "max")
         _merge(rasters, "mean")
         _merge(rasters, "count")
-
-
 
 
 

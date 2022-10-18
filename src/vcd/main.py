@@ -14,6 +14,7 @@ from typing import Tuple
 import yaml
 from codem.lib.log import Log
 from vcd.preprocessing.preprocess import PointCloud, VCD
+from vcd.meshing.mesh import Mesh
 
 
 from distutils.util import strtobool
@@ -196,6 +197,14 @@ def run_console(
 
         console.print("══════════ Rasterizing products ", justify="center")
         v.rasterize()
+
+
+        console.print("══════════ Meshing products ", justify="center")
+
+        m = Mesh(v)
+        m.write('non-ground', m.cluster(v.ng_clusters))
+        m.write('ground', m.cluster(v.ground_clusters))
+
 
         progress.advance(registration, 4)
 
