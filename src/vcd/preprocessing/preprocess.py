@@ -21,6 +21,12 @@ pio.templates.default = "plotly_dark"
 
 import numpy.lib.recfunctions as rfn
 
+from pyproj import CRS
+from pyproj import CRS
+from pyproj.aoi import AreaOfInterest
+from pyproj.database import query_utm_crs_info
+from pyproj import Transformer, transform
+
 from scipy.spatial import cKDTree
 
 import re
@@ -56,14 +62,57 @@ class PointCloud:
     def __init__(self, config: dict, key: str) -> None:
         self.logger = config['log']
         self.filename = config[key]
-        self.pipeline = self.open()
         self.config = config
+        self.srs = None
+        self.utm = None
+        self.pipeline = self.open()
 
         if len(self.pipeline.arrays) > 1:
             raise  NotImplementedError("VCD between multiple views is not supported")
         self.df = pd.DataFrame(self.pipeline.arrays[0])
 
     def open(self):
+
+        def _get_utm(pipeline):
+
+            data = pipeline.quickinfo
+            is_reader = [[k.split('.')[0] == 'readers', k] for k in data.keys()]
+            srs = {}
+            bounds = {}
+            for id, k in enumerate(is_reader):
+                if k[0]: # we are a reader
+                    reader_info = data[k[1]]
+                    bounds = reader_info['bounds']
+                    srs = CRS.from_user_input(reader_info['srs']['compoundwkt'])
+
+                    # we just take the first one. If there's more we are screwed
+                    break
+
+            transformer = Transformer.from_crs(srs, 4326)
+            dd = transformer.transform((bounds['minx'], bounds['maxx']),
+                                       (bounds['miny'], bounds['maxy']))
+
+            # stolen from Alan https://gis.stackexchange.com/a/423614/350
+
+            # dd now in the form ((41.469221251843926, 41.47258675464548), (-93.68979255724548, -93.68530098082489))
+
+            aoi = area_of_interest=AreaOfInterest( west_lon_degree=dd[1][0],
+                                                   south_lat_degree=dd[0][0],
+                                                   east_lon_degree=dd[1][1],
+                                                   north_lat_degree=dd[0][1])
+
+            utm_crs_list = query_utm_crs_info( area_of_interest = aoi,
+                                               datum_name="WGS 84" )
+
+            crs = CRS.from_epsg(utm_crs_list[0].code)
+
+            utm = f'EPSG:{crs.to_epsg()}'
+            pipeline |= pdal.Filter.reprojection(out_srs = utm)
+
+            pipeline.crs = crs
+            pipeline.utm = utm
+            return pipeline
+
         filters = None
 
         pipeline = get_json(self.filename)
@@ -73,7 +122,12 @@ class PointCloud:
         else:
             filters = pdal.Pipeline(self.filename)
             self.logger.logger.info(f'Loaded {self.filename}')
-        filters |= pdal.Filter.reprojection(out_srs="EPSG:26915")
+
+        filters = _get_utm(filters)
+
+        self.crs = filters.crs
+        self.utm = filters.utm
+
         filters |= pdal.Filter.range(limits="Classification![7:7]")
         filters |= pdal.Filter.range(limits="Classification![18:)")
         filters |= pdal.Filter.range(limits="Classification![9:9]")
@@ -261,7 +315,7 @@ class VCD:
 
 
 
-        def _rasterize(product, output_type="mean"):
+        def _rasterize(product, utm, output_type="mean"):
 
             array = product.to_records()
             array = rfn.rename_fields(array, {product.z: 'Z'})
@@ -270,9 +324,11 @@ class VCD:
 
             metadata = f"TIFFTAG_XRESOLUTION={resolution},TIFFTAG_YRESOLUTION={resolution},TIFFTAG_IMAGEDESCRIPTION={product.description}"
             gdalopts = "MAX_Z_ERROR=0.01,COMPRESS=LERC_ZSTD,OVERVIEW_COMPRESS=LERC_ZSTD,BIGTIFF=YES"
+
             pipeline = pdal.Writer.gdal(filename = outfile,
                                         metadata = metadata,
                                         gdalopts = gdalopts,
+                                        override_srs = utm,
                                         resolution = resolution).pipeline(array)
             pipeline.execute()
             return outfile
@@ -308,7 +364,7 @@ class VCD:
 
         rasters = []
         for p in self.products:
-            rasters.append(_rasterize(p))
+            rasters.append(_rasterize(p, self.before.utm))
 
         _merge(rasters, "idw")
         _merge(rasters, "min")
