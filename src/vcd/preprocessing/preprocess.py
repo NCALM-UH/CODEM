@@ -122,7 +122,7 @@ class PointCloud:
             filters = pdal.Pipeline(pipeline)
             self.logger.logger.info(f'Loaded JSON pipeline ')
         else:
-            filters = pdal.Pipeline(self.filename)
+            filters = pdal.Reader(self.filename).pipeline()
             self.logger.logger.info(f'Loaded {self.filename}')
 
         filters = _get_utm(filters)
