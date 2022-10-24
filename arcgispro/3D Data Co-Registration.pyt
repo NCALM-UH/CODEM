@@ -357,9 +357,7 @@ class Register_MultiType(object):
         #Add output to details pane with parameters and their values
         arcpy.AddMessage("=============PARAMETERS=============")
         for print_parameter in config:
-            param_string = print_parameter + " = " + str(config[print_parameter])
-            arcpy.AddMessage(param_string)
-
+            arcpy.AddMessage(f"{print_parameter}={str(config[print_parameter])}")
         arcpy.SetProgressorLabel("Step 1/4: Prepping AOI and Foundation Data")
         arcpy.SetProgressorPosition()
         arcpy.AddMessage("=============PREPROCESSING DATA=============")
@@ -422,9 +420,9 @@ class Register_MultiType(object):
         arcpy.AddMessage("Solving ICP registration.")
         # ICP Converge statements - need support to interpret RMSE math
         # For number of ICP iterations, need to create an 'iterator' or 'i+1' self. variable to output here
-        ICP_parameters = os.path.join(icp_reg.config["OUTPUT_DIR"], "registration.txt")
+        icp_parameters = os.path.join(icp_reg.config["OUTPUT_DIR"], "registration.txt")
 
-        arcpy.AddMessage(f"Saving ICP registration parameters to {ICP_parameters}")
+        arcpy.AddMessage(f"Saving ICP registration parameters to {icp_parameters}")
 
 
         arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
