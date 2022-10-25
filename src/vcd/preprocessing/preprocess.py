@@ -4,16 +4,12 @@ Project: CRREL-NEGGS University of Houston Collaboration
 Date: February 2021
 
 """
-import json
 import os
 
 import pdal
 import rasterio
 
-from typing import Optional
 
-import codem.lib.resources as r
-from typing_extensions import TypedDict
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -25,7 +21,7 @@ from pyproj import CRS
 from pyproj import CRS
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info
-from pyproj import Transformer, transform
+from pyproj import Transformer
 
 from scipy.spatial import cKDTree
 
@@ -38,6 +34,7 @@ def get_json(filename):
         with open(filename,'r') as f:
             return f.read()
     except:
+        # if we can't read the file we return nothing
         return None
 
 
@@ -98,7 +95,7 @@ class PointCloud:
 
             # dd now in the form ((41.469221251843926, 41.47258675464548), (-93.68979255724548, -93.68530098082489))
 
-            aoi = area_of_interest=AreaOfInterest( west_lon_degree=dd[1][0],
+            aoi = AreaOfInterest( west_lon_degree=dd[1][0],
                                                    south_lat_degree=dd[0][0],
                                                    east_lon_degree=dd[1][1],
                                                    north_lat_degree=dd[0][1])
@@ -164,7 +161,6 @@ class VCD:
 
         after = self.after.df
         before = self.before.df
-        gh = self.gh
 
         tree2d = cKDTree(before[['X','Y']])
         d2d, i2d = tree2d.query(after[['X','Y']], k=1)
@@ -214,7 +210,6 @@ class VCD:
 
     def make_products(self):
         after = self.after.df
-        before = self.before.df
         gh = self.gh
         resolution = self.resolution
 
@@ -247,8 +242,6 @@ class VCD:
         self.products.append(p)
 
     def make_product(self, x, y, z, description="", colorscale='RdBu'):
-        after = self.after.df
-        before = self.before.df
 
         product = x.to_frame().join(y.to_frame()).join( z.to_frame())
         product.z = z.name
@@ -265,6 +258,7 @@ class VCD:
             try:
                 os.mkdir(os.path.join(self.before.config['OUTPUT_DIR'], "plots"))
             except FileExistsError:
+                # if the file exists we are good
                 pass
 
             outfile = os.path.join(self.before.config['OUTPUT_DIR'], "plots", product.slug) + '.png'
@@ -300,6 +294,7 @@ class VCD:
             os.mkdir(summary_dir)
             os.mkdir(products_dir)
         except FileExistsError:
+            # if the directories are there we are good
             pass
 
 

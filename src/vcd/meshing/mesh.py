@@ -6,7 +6,7 @@ import trimesh
 
 # https://github.com/GeospatialPython/pyshp
 import shapefile
-from shapefile import TRIANGLE_STRIP, TRIANGLE_FAN, RING, OUTER_RING, FIRST_RING
+from shapefile import TRIANGLE_STRIP
 
 import pdal
 
@@ -73,6 +73,7 @@ class Mesh:
         try:
             os.mkdir(os.path.join(self.vcd.before.config['OUTPUT_DIR'], "meshes"))
         except FileExistsError:
+            # if the directory already exists, so what
             pass
 
         outfile = os.path.join(self.vcd.before.config['OUTPUT_DIR'], "meshes", filename)
