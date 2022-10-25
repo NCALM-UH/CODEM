@@ -362,5 +362,23 @@ class VCD:
         _merge(rasters, "count")
 
 
+    def save(self):
+
+        try:
+            os.mkdir(os.path.join(self.before.config['OUTPUT_DIR'], "points"))
+        except FileExistsError:
+            pass
+
+        ng = os.path.join(self.before.config['OUTPUT_DIR'], "points", 'ng-clusters.tf')
+        gnd = os.path.join(self.before.config['OUTPUT_DIR'], "points", 'gnd-clusters.tf')
+
+
+        df = pd.DataFrame(self.ng_clusters.arrays[0])
+        df.to_feather(ng)
+
+        df = pd.DataFrame(self.ground_clusters.arrays[0])
+        df.to_feather(gnd)
+
+
 
 

@@ -181,12 +181,10 @@ def run_console(
         console.print("══════════Computing indexes for comparison =====", justify="center")
         v = VCD(before, after)
         v.compute_indexes()
-        progress.advance(registration, 7)
 
         console.print("══════════ Extracting differences ", justify="center")
         v.make_products()
 
-        progress.advance(registration, 45)
 
         console.print("══════════ Clustering ", justify="center")
         v.cluster()
@@ -205,8 +203,9 @@ def run_console(
         m.write('non-ground', m.cluster(v.ng_clusters))
         m.write('ground', m.cluster(v.ground_clusters))
 
+        v.save()
 
-        progress.advance(registration, 4)
+
 
 def main() -> None:
     args = get_args()
