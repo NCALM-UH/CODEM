@@ -9,20 +9,19 @@ import time
 from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import Tuple
 
 import yaml
 from codem.lib.log import Log
-from vcd.preprocessing.preprocess import PointCloud, VCD
-from vcd.meshing.mesh import Mesh
-
-
 from distutils.util import strtobool
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.progress import Progress
 from rich.progress import SpinnerColumn
 from rich.progress import TimeElapsedColumn
+from vcd.meshing.mesh import Mesh
+from vcd.preprocessing.preprocess import PointCloud
+from vcd.preprocessing.preprocess import VCD
+from vcd.preprocessing.preprocess import VCDParameters
 
 
 @dataclasses.dataclass
@@ -49,9 +48,7 @@ class VcdRunConfig:
                 current_time.tm_sec,
             )
 
-            output_dir = os.path.join(
-                os.path.dirname(self.AFTER), f"vcd_{timestamp}"
-            )
+            output_dir = os.path.join(os.path.dirname(self.AFTER), f"vcd_{timestamp}")
             os.mkdir(output_dir)
             self.OUTPUT_DIR = os.path.abspath(output_dir)
 
@@ -117,7 +114,8 @@ def get_args() -> argparse.Namespace:
         help="Output picture plots of products",
     )
     ap.add_argument(
-        "-v", "--verbose", action="count", default=0,  help="turn on verbose logging")
+        "-v", "--verbose", action="count", default=0, help="turn on verbose logging"
+    )
     args = ap.parse_args()
     return args
 
@@ -128,18 +126,13 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         os.fsdecode(os.path.abspath(args.after)),
         SPACING=float(args.spacing_override),
         VERBOSE=args.verbose,
-        PLOT=args.plot
+        PLOT=args.plot,
     )
     return dataclasses.asdict(config)
 
-def preprocess(config: Dict[str, Any]) -> Tuple[PointCloud, PointCloud]:
-    before = instantiate(config, 'BEFORE')
-    after = instantiate(config, 'AFTER')
-    import pdb;pdb.set_trace()
-    return before, after
 
 def run_console(
-    config: Dict[str, Any], logger: logging.Logger, console: Console
+    config: VCDParameters, logger: logging.Logger, console: Console
 ) -> None:
     """
     Preprocess and register the provided data
@@ -169,42 +162,41 @@ def run_console(
         console.print()
         console.print("══════════════PARAMETERS══════════════", justify="center")
         for key in config:
-            logger.info(f"{key} = {config[key]}")
+            logger.info(f"{key} = {config[key]}")  # type: ignore
         progress.advance(registration, 1)
 
         console.print("══════════PREPROCESSING DATA══════════", justify="center")
         console.print("══════════Filtering 'before' data ====", justify="center")
-        before = PointCloud(config, 'BEFORE')
+        before = PointCloud(config, "BEFORE")
         console.print("══════════Filtering 'after' data =====", justify="center")
-        after = PointCloud(config, 'AFTER')
+        after = PointCloud(config, "AFTER")
 
-        console.print("══════════Computing indexes for comparison =====", justify="center")
+        console.print(
+            "══════════Computing indexes for comparison =====", justify="center"
+        )
         v = VCD(before, after)
         v.compute_indexes()
 
         console.print("══════════ Extracting differences ", justify="center")
         v.make_products()
 
-
         console.print("══════════ Clustering ", justify="center")
         v.cluster()
 
-        if config['PLOT']:
+        if config["PLOT"]:
             console.print("══════════ Plotting pictures =====", justify="center")
             v.plot()
 
         console.print("══════════ Rasterizing products ", justify="center")
         v.rasterize()
 
-
         console.print("══════════ Meshing products ", justify="center")
 
         m = Mesh(v)
-        m.write('non-ground', m.cluster(v.ng_clusters))
-        m.write('ground', m.cluster(v.ground_clusters))
+        m.write("non-ground", m.cluster(v.ng_clusters))
+        m.write("ground", m.cluster(v.ground_clusters))
 
         v.save()
-
 
 
 def main() -> None:
@@ -214,7 +206,7 @@ def main() -> None:
     rich_handler = RichHandler(level="DEBUG", console=console, markup=False)
     codem_logger = Log(config)
     codem_logger.logger.addHandler(rich_handler)
-    run_console(config, codem_logger.logger, console)
+    run_console(config, codem_logger.logger, console)  # type: ignore
 
 
 if __name__ == "__main__":

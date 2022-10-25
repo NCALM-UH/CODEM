@@ -1,30 +1,26 @@
-
-
-from ..preprocessing.preprocess import PointCloud, VCD
-
-import trimesh
-
-# https://github.com/GeospatialPython/pyshp
-import shapefile
-from shapefile import TRIANGLE_STRIP
-
-import pdal
-
-from pyproj.enums import WktVersion
+import contextlib
+import os
+from typing import List
 
 import numpy as np
+import pdal
+import shapefile
+import trimesh
+from pyproj.enums import WktVersion
+from shapefile import TRIANGLE_STRIP
+from vcd.preprocessing.preprocess import VCD
 
-import os
+# https://github.com/GeospatialPython/pyshp
 
 
 class Mesh:
     def __init__(self, vcd: VCD) -> None:
         self.vcd = vcd
 
-    def cluster(self, dataset):
+    def cluster(self, dataset: pdal.Filter.cluster) -> List[trimesh.Trimesh]:
 
         clusters = []
-        dimension = 'ClusterID'
+        dimension = "ClusterID"
         pipeline = """
         {
             "pipeline": [
@@ -34,26 +30,30 @@ class Mesh:
                 }
             ]
         } """
-        reader = pdal.Pipeline(pipeline, arrays = dataset.arrays)
+        reader = pdal.Pipeline(pipeline, arrays=dataset.arrays)
         reader.execute()
 
         for arr in reader.arrays:
 
             if len(arr) < 5:
-                if (len(arr)):
+                if len(arr):
                     cluster_id = arr[0][dimension]
-                    print (f"Not enough points to cluster {cluster_id}. We have {len(arr)} and need 5")
+                    print(
+                        f"Not enough points to cluster {cluster_id}. We have {len(arr)} and need 5"
+                    )
                 else:
-                    print (f"Cluster has no points!")
+                    print("Cluster has no points!")
 
-            x = arr['X']
-            y = arr['Y']
-            z = arr['Z']
+            x = arr["X"]
+            y = arr["Y"]
+            z = arr["Z"]
             cluster_id = arr[0][dimension]
 
-            points = np.vstack((x,y,z)).T
+            points = np.vstack((x, y, z)).T
 
-            self.vcd.before.logger.logger.info (f'computing Delaunay of {len(points)} points')
+            self.vcd.before.logger.logger.info(
+                f"computing Delaunay of {len(points)} points"
+            )
 
             pc = trimesh.points.PointCloud(points)
 
@@ -61,45 +61,35 @@ class Mesh:
             hull.cluster_id = cluster_id
 
             # cull out some specific cluster IDs
-            culls = [-1,0,1]
+            culls = [-1, 0, 1]
 
             if cluster_id not in culls:
                 clusters.append(hull)
 
         return clusters
 
-
-    def write(self, filename, clusters):
-        try:
-            os.mkdir(os.path.join(self.vcd.before.config['OUTPUT_DIR'], "meshes"))
-        except FileExistsError:
-            # if the directory already exists, so what
-            pass
-
-        outfile = os.path.join(self.vcd.before.config['OUTPUT_DIR'], "meshes", filename)
+    def write(self, filename: str, clusters: List[trimesh.Trimesh]) -> None:
+        with contextlib.suppress(FileExistsError):
+            os.mkdir(os.path.join(self.vcd.before.config["OUTPUT_DIR"], "meshes"))
+        outfile = os.path.join(self.vcd.before.config["OUTPUT_DIR"], "meshes", filename)
+        if self.vcd.before.crs is None:
+            # mypy must be satisfied with its optional!
+            raise RuntimeError
         wkt = self.vcd.before.crs.to_wkt(WktVersion.WKT1_ESRI)
-
-        self.vcd.before.logger.logger.info (f'Saving mesh data to {filename}')
-
+        self.vcd.before.logger.logger.info(f"Saving mesh data to {filename}")
 
         with shapefile.Writer(outfile) as w:
-            w.field('volume', 'N', decimal=2)
-            w.field('area', 'N', decimal=2)
-            w.field('clusterid', 'N')
+            w.field("volume", "N", decimal=2)
+            w.field("area", "N", decimal=2)
+            w.field("clusterid", "N")
 
             # Save CRS WKT
-            with open(outfile+'.prj', 'w') as f:
+            with open(f"{outfile}.prj", "w") as f:
                 f.write(wkt)
 
             for cluster in clusters:
-                w.multipatch(cluster.triangles, partTypes=[TRIANGLE_STRIP]* len(cluster.triangles)) # one type for each part
+                w.multipatch(
+                    cluster.triangles,
+                    partTypes=[TRIANGLE_STRIP] * len(cluster.triangles),
+                )  # one type for each part
                 w.record(cluster.volume, cluster.area, cluster.cluster_id)
-
-            w.close()
-
-
-
-
-
-
-
