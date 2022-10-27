@@ -32,7 +32,6 @@ class VcdRunConfig:
     GROUNDHEIGHT: float = 1.0
     RESOLUTION: float = 2.0
     VERBOSE: bool = False
-    PLOT: bool = True
     OUTPUT_DIR: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -108,12 +107,6 @@ def get_args() -> argparse.Namespace:
         help="Raster output resolution",
     )
     ap.add_argument(
-        "--plot",
-        type=bool,
-        default=VcdRunConfig.PLOT,
-        help="Output picture plots of products",
-    )
-    ap.add_argument(
         "-v", "--verbose", action="count", default=0, help="turn on verbose logging"
     )
     args = ap.parse_args()
@@ -126,7 +119,6 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         os.fsdecode(os.path.abspath(args.after)),
         SPACING=float(args.spacing_override),
         VERBOSE=args.verbose,
-        PLOT=args.plot,
     )
     return dataclasses.asdict(config)
 
@@ -182,10 +174,6 @@ def run_console(
 
         console.print("══════════ Clustering ", justify="center")
         v.cluster()
-
-        if config["PLOT"]:
-            console.print("══════════ Plotting pictures =====", justify="center")
-            v.plot()
 
         console.print("══════════ Rasterizing products ", justify="center")
         v.rasterize()

@@ -9,10 +9,10 @@ dependencies:
   - matplotlib
   - scikit-image
   - rich
-  - numpy==1.20.3
+  - numpy
   - typing-extensions
   - gdal
   - pyproj
   - pyshp
   - pandas
-  - plotly
+  - pyarrow

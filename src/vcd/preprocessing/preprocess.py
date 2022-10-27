@@ -15,8 +15,6 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import pandas as pd
 import pdal
-import plotly.graph_objects as go
-import plotly.io as pio
 import rasterio
 from codem.lib.log import Log
 from pyproj import CRS
@@ -26,8 +24,6 @@ from pyproj.database import query_utm_crs_info  # type: ignore
 from scipy.spatial import cKDTree
 from typing_extensions import TypedDict
 
-pio.templates.default = "plotly_dark"
-
 
 class VCDParameters(TypedDict):
     GROUNDHEIGHT: np.ndarray
@@ -35,7 +31,6 @@ class VCDParameters(TypedDict):
     OUTPUT_DIR: str
     BEFORE: str
     AFTER: str
-    PLOT: bool
     log: Log
 
 
@@ -271,46 +266,6 @@ class VCD:
         product.description = description
         product.colorscale = colorscale
         return product
-
-    def plot(self) -> None:
-        def _plot(product: pd.DataFrame) -> None:
-
-            with contextlib.suppress(FileExistsError):
-                os.mkdir(os.path.join(self.before.config["OUTPUT_DIR"], "plots"))
-            outfile = (
-                os.path.join(self.before.config["OUTPUT_DIR"], "plots", product.slug)
-                + ".png"
-            )
-
-            fig = go.Figure(
-                layout_title_text=product.description,
-                data=go.Scattergl(
-                    x=product.X,
-                    y=product.Y,
-                    mode="markers",
-                    marker=dict(
-                        color=product[product.z],
-                        colorscale=product.colorscale,
-                        colorbar=dict(thickness=20),
-                        size=1,
-                    ),
-                ),
-            )
-            fig.update_yaxes(
-                scaleanchor="x",
-                scaleratio=1,
-            )
-            fig.update_layout(
-                autosize=False,
-                width=700,
-                height=700,
-            )
-            img = fig.to_image("png")
-            with open(outfile, "wb") as f:
-                f.write(img)
-
-        for p in self.products:
-            _plot(p)
 
     def rasterize(self) -> None:
         resolution = self.before.config["RESOLUTION"]
