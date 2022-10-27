@@ -7,7 +7,6 @@ Date: February 2021
 import contextlib
 import os
 import re
-from typing import Dict
 from typing import List
 from typing import Optional
 
@@ -277,10 +276,9 @@ class VCD:
             self.before.config["OUTPUT_DIR"], "rasters", "products"
         )
 
-        with contextlib.suppress(FileExistsError):
-            os.mkdir(rasters_dir)
-            os.mkdir(summary_dir)
-            os.mkdir(products_dir)
+        os.makedirs(rasters_dir, exist_ok=True)
+        os.makedirs(summary_dir, exist_ok=True)
+        os.makedirs(products_dir, exist_ok=True)
 
         def _rasterize(
             product: pd.DataFrame, utm: str, output_type: str = "mean"
@@ -333,27 +331,24 @@ class VCD:
                         dst.update_tags(band_id)
                         dst.set_band_description(index, band_description)
 
-        rasters: List[str] = []
-        for p in self.products:
-            rasters.append(_rasterize(p, self.before.utm))
+        rasters = [_rasterize(p, self.before.utm) for p in self.products]
 
-        _merge(rasters, "idw")
-        _merge(rasters, "min")
-        _merge(rasters, "max")
-        _merge(rasters, "mean")
-        _merge(rasters, "count")
+        for feature in ("idw", "min", "max", "mean", "count"):
+            _merge(rasters, feature)
 
     def save(self) -> None:
 
         with contextlib.suppress(FileExistsError):
             os.mkdir(os.path.join(self.before.config["OUTPUT_DIR"], "points"))
-        ng = os.path.join(self.before.config["OUTPUT_DIR"], "points", "ng-clusters.tf")
-        gnd = os.path.join(
+        new_ground = os.path.join(
+            self.before.config["OUTPUT_DIR"], "points", "ng-clusters.tf"
+        )
+        ground = os.path.join(
             self.before.config["OUTPUT_DIR"], "points", "gnd-clusters.tf"
         )
 
         df = pd.DataFrame(self.ng_clusters.arrays[0])
-        df.to_feather(ng)
+        df.to_feather(new_ground)
 
         df = pd.DataFrame(self.ground_clusters.arrays[0])
-        df.to_feather(gnd)
+        df.to_feather(ground)

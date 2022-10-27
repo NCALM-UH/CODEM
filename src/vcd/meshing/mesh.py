@@ -10,8 +10,6 @@ from pyproj.enums import WktVersion
 from shapefile import TRIANGLE_STRIP
 from vcd.preprocessing.preprocess import VCD
 
-# https://github.com/GeospatialPython/pyshp
-
 
 class Mesh:
     def __init__(self, vcd: VCD) -> None:
