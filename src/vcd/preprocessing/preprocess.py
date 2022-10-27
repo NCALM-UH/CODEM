@@ -115,10 +115,9 @@ class PointCloud:
             pipeline.utm = utm
             return pipeline
 
-        filters = None
-
-        pipeline = get_json(self.filename)
-        if pipeline:
+        filters: pdal.Pipeline
+        if os.path.splitext(self.filename)[-1] == ".json":
+            pipeline = get_json(self.filename)
             filters = pdal.Pipeline(pipeline)
             self.logger.logger.info("Loaded JSON pipeline ")
         else:
@@ -280,9 +279,7 @@ class VCD:
         os.makedirs(summary_dir, exist_ok=True)
         os.makedirs(products_dir, exist_ok=True)
 
-        def _rasterize(
-            product: pd.DataFrame, utm: str, output_type: str = "mean"
-        ) -> str:
+        def _rasterize(product: pd.DataFrame, utm: str) -> str:
 
             array = product.to_records()
             array = rfn.rename_fields(array, {product.z: "Z"})
@@ -332,12 +329,11 @@ class VCD:
                         dst.set_band_description(index, band_description)
 
         rasters = [_rasterize(p, self.before.utm) for p in self.products]
-
         for feature in ("idw", "min", "max", "mean", "count"):
             _merge(rasters, feature)
+        return None
 
     def save(self) -> None:
-
         with contextlib.suppress(FileExistsError):
             os.mkdir(os.path.join(self.before.config["OUTPUT_DIR"], "points"))
         new_ground = os.path.join(
