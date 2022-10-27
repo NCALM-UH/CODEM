@@ -160,24 +160,25 @@ def run_console(
         console.print("══════════PREPROCESSING DATA══════════", justify="center")
         console.print("══════════Filtering 'before' data ====", justify="center")
         before = PointCloud(config, "BEFORE")
+        progress.advance(registration, 14)
         console.print("══════════Filtering 'after' data =====", justify="center")
         after = PointCloud(config, "AFTER")
-
+        progress.advance(registration, 15)
         console.print(
             "══════════Computing indexes for comparison =====", justify="center"
         )
         v = VCD(before, after)
         v.compute_indexes()
-
+        progress.advance(registration, 15)
         console.print("══════════ Extracting differences ", justify="center")
         v.make_products()
-
+        progress.advance(registration, 15)
         console.print("══════════ Clustering ", justify="center")
         v.cluster()
-
+        progress.advance(registration, 15)
         console.print("══════════ Rasterizing products ", justify="center")
         v.rasterize()
-
+        progress.advance(registration, 15)
         console.print("══════════ Meshing products ", justify="center")
 
         m = Mesh(v)
@@ -185,6 +186,7 @@ def run_console(
         m.write("ground", m.cluster(v.ground_clusters))
 
         v.save()
+        progress.advance(registration, 10)
 
 
 def main() -> None:
