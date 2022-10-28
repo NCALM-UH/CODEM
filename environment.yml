@@ -15,4 +15,3 @@ dependencies:
   - pyproj
   - pyshp
   - pandas
-  - pyarrow

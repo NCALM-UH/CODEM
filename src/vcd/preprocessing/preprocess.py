@@ -333,18 +333,25 @@ class VCD:
             _merge(rasters, feature)
         return None
 
-    def save(self) -> None:
+    def save(self, format: str = ".las") -> None:
         with contextlib.suppress(FileExistsError):
             os.mkdir(os.path.join(self.before.config["OUTPUT_DIR"], "points"))
-        new_ground = os.path.join(
-            self.before.config["OUTPUT_DIR"], "points", "ng-clusters.tf"
+        new_ground = (
+            os.path.join(self.before.config["OUTPUT_DIR"], "points", "ng-clusters")
+            + format
         )
-        ground = os.path.join(
-            self.before.config["OUTPUT_DIR"], "points", "gnd-clusters.tf"
+        ground = (
+            os.path.join(self.before.config["OUTPUT_DIR"], "points", "gnd-clusters")
+            + format
         )
+        pipeline = pdal.Writer.las(
+            minor_version=4, filename=new_ground, extra_dims="all"
+        ).pipeline(self.ng_clusters.arrays[0])
+        pipeline.execute()
 
-        df = pd.DataFrame(self.ng_clusters.arrays[0])
-        df.to_feather(new_ground)
-
-        df = pd.DataFrame(self.ground_clusters.arrays[0])
-        df.to_feather(ground)
+        pipeline = pdal.Writer.las(
+            minor_version=4,
+            filename=ground,
+            extra_dims="all",
+        ).pipeline(self.ground_clusters.arrays[0])
+        pipeline.execute()
