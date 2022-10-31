@@ -6,7 +6,7 @@ import pdal
 import codem
 import dataclasses
 import math
-
+import numpy as np
 
 class Toolbox(object):
     def __init__(self):
@@ -353,27 +353,86 @@ class Register_MultiType(object):
         }
         codem_run_config = codem.CodemRunConfig(fnd_full_path, aoi_full_path, **kwargs)
         config = dataclasses.asdict(codem_run_config)
-
+        
+        #Add output to details pane with parameters and their values
+        arcpy.AddMessage("=============PARAMETERS=============")
+        for parameter, value in config.items():
+            arcpy.AddMessage(f"{parameter}={value}")
         arcpy.SetProgressorLabel("Step 1/4: Prepping AOI and Foundation Data")
         arcpy.SetProgressorPosition()
+        arcpy.AddMessage("=============PREPROCESSING DATA=============")
         fnd_obj, aoi_obj = codem.preprocess(config)
 
         fnd_obj.prep()
         aoi_obj.prep()
 
+        if fnd_obj.units:
+            arcpy.AddMessage(f"Linear unit for Foundation-{fnd_obj.type.upper()} detected as {fnd_obj.units}")
+        else:
+            arcpy.AddMessage(f"Linear unit for Foundation-{fnd_obj.type.upper()} not detected -> "
+                    "meters assumed")
+        arcpy.AddMessage(f"Calculated native resolution of {fnd_obj.type.upper()} as: "
+            f"{fnd_obj.native_resolution:.1f} meters")
+
+        if aoi_obj.units:
+            arcpy.AddMessage(f"Linear unit for AOI-{aoi_obj.type.upper()} detected as {aoi_obj.units}")
+        else:
+            arcpy.AddMessage(f"Linear unit for Foundation-{aoi_obj.type.upper()} not detected -> "
+                    "meters assumed")
+        arcpy.AddMessage(f"Calculated native resolution of {aoi_obj.type.upper()} as: "
+            f"{aoi_obj.native_resolution:.1f} meters")
+
+        arcpy.AddMessage(f"Preparing Foundation {fnd_obj.type.upper()} for registration.")
+        arcpy.AddMessage(f"Extracting DSM from FND {fnd_obj.type.upper()} with resolution of: "
+            f"{fnd_obj.resolution} meters")
+
+        arcpy.AddMessage(f"Preparing AOI {aoi_obj.type.upper()} for registration.")
+        arcpy.AddMessage(f"Extracting DSM from AOI {aoi_obj.type.upper()} with resolution of: "
+            f"{aoi_obj.resolution} meters")
+        #No resampling required message?
+        arcpy.AddMessage(f"Registration resolution has been set to: "
+            f"{fnd_obj.resolution} meters")
+
         arcpy.SetProgressorLabel("Step 2/4: Solving Coarse Registration")
         arcpy.SetProgressorPosition()
+        arcpy.AddMessage("=============BEGINNING COARSE REGISTRATION=============")
+
         dsm_reg = codem.coarse_registration(fnd_obj, aoi_obj, config)
+        arcpy.AddMessage("Solving DSM feature registration.")
+        arcpy.AddMessage(f"{len(dsm_reg.fnd_kp)} keypoints detected in foundation.")
+        arcpy.AddMessage(f"{len(dsm_reg.aoi_kp)} keypoints detected in AOI.")
+        arcpy.AddMessage(f"{len(dsm_reg.putative_matches)} putative keypoint matches found.")
+        arcpy.AddMessage(f"{np.sum(dsm_reg.inliers)} keypoint matches found.")
+
+        feature_viz = os.path.join(dsm_reg.config["OUTPUT_DIR"], "dsm_feature_matches.png")
+        arcpy.AddMessage(f"Saving DSM feature match visualization to: {feature_viz}")
+
+        registration_parameters = os.path.join(dsm_reg.config["OUTPUT_DIR"], "registration.txt")
+        arcpy.AddMessage(f"Saving DSM feature registration parameters to: {registration_parameters}")
 
         arcpy.SetProgressorLabel("Step 3/4: Solving Fine Registration")
         arcpy.SetProgressorPosition()
+        arcpy.AddMessage("=============BEGINNING FINE REGISTRATION=============")
+
+
+
         icp_reg = codem.fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
+        arcpy.AddMessage("Solving ICP registration.")
+        # ICP Converge statements - need support to interpret RMSE math
+        # For number of ICP iterations, need to create an 'iterator' or 'i+1' self. variable to output here
+        icp_parameters = os.path.join(icp_reg.config["OUTPUT_DIR"], "registration.txt")
+
+        arcpy.AddMessage(f"Saving ICP registration parameters to {icp_parameters}")
+
 
         arcpy.SetProgressorLabel("Step 4/4: Applying Registration to AOI Data")
         arcpy.SetProgressorPosition()
+        arcpy.AddMessage("=============APPLYING REGISTRATION=============")
+
         reg_file = codem.apply_registration(
             fnd_obj, aoi_obj, icp_reg, config, output_format=mapping[aoi_file_extension].lstrip(".")
         )
+        arcpy.AddMessage(f"Registration has been applied to AOI-DSM and saved to: {reg_file}")
 
         if not os.path.exists(reg_file):
             arcpy.AddError(f"Registration file '{reg_file}' not generated")
