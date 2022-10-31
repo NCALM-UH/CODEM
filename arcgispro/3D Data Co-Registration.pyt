@@ -356,8 +356,8 @@ class Register_MultiType(object):
         
         #Add output to details pane with parameters and their values
         arcpy.AddMessage("=============PARAMETERS=============")
-        for print_parameter in config:
-            arcpy.AddMessage(f"{print_parameter}={str(config[print_parameter])}")
+        for parameter, value in config.items():
+            arcpy.AddMessage(f"{parameter}={value}")
         arcpy.SetProgressorLabel("Step 1/4: Prepping AOI and Foundation Data")
         arcpy.SetProgressorPosition()
         arcpy.AddMessage("=============PREPROCESSING DATA=============")
