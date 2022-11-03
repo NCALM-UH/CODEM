@@ -36,3 +36,4 @@ class Log:
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(log_format)
         self.logger.addHandler(file_handler)
+        config['log'] = self

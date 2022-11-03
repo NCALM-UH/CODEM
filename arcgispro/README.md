@@ -66,3 +66,20 @@ From the root of the of the CODEM project
 ```
 
 Within ArcGIS, go to the Python tab, and add a newly created conda environment (this can be retrieved by running `conda info | findstr /c:"active env location"` from the command prompt with the `codem` environment activated).
+
+## Creation of specfile Guide (Advanced)
+
+The following section is directed towards the maintainers of codem.  The author recognizes that the following is not a "best practice" in creating python environments, but it is the only functional steps
+
+While going through the process, some things you absolutely do not want to change
+
+* Never upgrade the ESRI python interpreter, if a conda/mamba resolver wants to upgrade the python version, cancel and attempt to install or upgrade the relative packages without doing that.
+* Never upgrade the ESRI numpy version; for ArcGIS Pro 2.9.x, it should be 1.20.1 from the `esri` channel
+* SciPy should come from the `defaults` channel.
+
+
+1. Start with exporting a spec-file from the arcgis provided environment `conda list --explicit > spec-file.txt`
+2. Create a new conda environment with that spec file `conda create --name codem --file spec-file.txt`
+3. Activate the environment; now there is an environment we can manipualte
+4. Upgrade the vc and vc-runtime packages `mamba upgrade -c conda-forge vs2015_runtime`
+5. Install packages using `mamba` in small increments until all the needed dependencies are there. Consider upgrading from the `default` channel packages to `conda-forge` variants.  Test _within_ ArcGIS pro periodically (this will highlight DLL errors and such).
