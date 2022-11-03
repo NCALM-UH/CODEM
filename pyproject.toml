@@ -42,6 +42,7 @@ build-backend = "setuptools.build_meta"
 
 [project.scripts]
 codem = "codem.main:main"
+vcd = "vcd.main:main"
 
 [tool.black]
 line-length = 88
@@ -78,7 +79,13 @@ module = [
   "matplotlib",
   "matplotlib.pyplot",
   "matplotlib.tri",
+  "pandas",
   "pdal",
+  "pyproj",
+  "pyproj.aoi",
+  "pyproj.crs",
+  "pyproj.database",
+  "pyproj.enums",
   "rasterio",
   "rasterio.crs",
   "rasterio.enums",
@@ -88,8 +95,10 @@ module = [
   "rich.progress",
   "scipy",
   "scipy.sparse",
+  "scipy.spatial",
+  "shapefile",
   "skimage",
   "skimage.measure",
-  "trimesh"
+  "trimesh",
 ]
 ignore_missing_imports = true
