@@ -30,14 +30,14 @@ class Register_MultiType(object):
         fnd = arcpy.Parameter(
             displayName="Foundation Data File",
             name="foundation_file",
-            datatype=["GPLayer","DEFile"],
+            datatype=["DEFile","DELasDataset","GPLasDatasetLayer","GPRasterLayer"],
             parameterType="Required",
             direction="Input",
         )
         aoi = arcpy.Parameter(
             displayName="Area of Interest (AOI) Data File",
             name="aoi_file",
-            datatype=["GPLayer","DEFile"],
+            datatype=["DEFile","DELasDataset","GPLasDatasetLayer","GPRasterLayer"],
             parameterType="Required",
             direction="Input",
         )
@@ -158,15 +158,7 @@ class Register_MultiType(object):
             category="ICP Registration Options",
         )
 
-        # Foundation data file
-        # fnd.value = "E:\dev\codem\demo\Foundation-PointCloud.laz"
-        #fnd.filter.list = ["las", "laz", "bpf", "ply", "obj", "tif", "tiff"]
-        # AOI data file
-        # aoi.value = "E:\dev\codem\demo\AOI-Mesh.ply"
-        #aoi.filter.list = ["las", "laz", "bpf", "ply", "obj", "tif", "tiff"]
-
         # Minimum pipeline resolution
-        # min.value = 2.0
         min.value = 1.0
         min.filter.type = "Range"
         min.filter.list = [0.01, 100]
@@ -344,22 +336,14 @@ class Register_MultiType(object):
         return
 
     def getLayerPath(self, layer):
-        if os.path.isabs(layer):
-            layer_source = layer
-        else:
+        if not os.path.exists(layer):
+        # we are working with an ArcGIS scene layer and not a file:
             desc = arcpy.Describe(layer)
-            path = desc.path
-            layer_source = str(path) + "\\" + layer
-        return layer_source
+            layer = os.path.join(desc.path, layer)
+        return layer
 
     def execute(self, parameters, messages):
         """The source code of the tool."""
-
-        # fnd_base = self.getLayerPath(parameters[0].valueAsText)
-        # aoi_base = self.getLayerPath(parameters[1].valueAsText)
-
-        # fnd_dir, fnd_file = os.path.split(fnd_base)
-        # aoi_dir, aoi_file = os.path.split(aoi_base)
 
         fnd_full_path = os.fsdecode(f"{self.getLayerPath(parameters[0].valueAsText)}").replace(os.sep, "/")
         aoi_full_path = os.fsdecode(f"{self.getLayerPath(parameters[1].valueAsText)}").replace(os.sep, "/")
