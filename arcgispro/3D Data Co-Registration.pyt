@@ -30,14 +30,14 @@ class Register_MultiType(object):
         fnd = arcpy.Parameter(
             displayName="Foundation Data File",
             name="foundation_file",
-            datatype="DEFile",
+            datatype=["DEFile","DELasDataset","GPLasDatasetLayer","GPRasterLayer"],
             parameterType="Required",
             direction="Input",
         )
         aoi = arcpy.Parameter(
             displayName="Area of Interest (AOI) Data File",
             name="aoi_file",
-            datatype="DEFile",
+            datatype=["DEFile","DELasDataset","GPLasDatasetLayer","GPRasterLayer"],
             parameterType="Required",
             direction="Input",
         )
@@ -158,15 +158,7 @@ class Register_MultiType(object):
             category="ICP Registration Options",
         )
 
-        # Foundation data file
-        # fnd.value = "E:\dev\codem\demo\Foundation-PointCloud.laz"
-        fnd.filter.list = ["las", "laz", "bpf", "ply", "obj", "tif", "tiff"]
-        # AOI data file
-        # aoi.value = "E:\dev\codem\demo\AOI-Mesh.ply"
-        aoi.filter.list = ["las", "laz", "bpf", "ply", "obj", "tif", "tiff"]
-
         # Minimum pipeline resolution
-        # min.value = 2.0
         min.value = 1.0
         min.filter.type = "Range"
         min.filter.list = [0.01, 100]
@@ -247,7 +239,6 @@ class Register_MultiType(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
-
         return
 
     def updateMessages(self, parameters):
@@ -272,10 +263,10 @@ class Register_MultiType(object):
         # first make sure both params are input
         if parameters[0].value and parameters[1].value:
             # get path
-            fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(
+            fnd_full_path = os.fsdecode(f"{self.getLayerPath(parameters[0].valueAsText)}").replace(
                 os.sep, "/"
             )
-            aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(
+            aoi_full_path = os.fsdecode(f"{self.getLayerPath(parameters[1].valueAsText)}").replace(
                 os.sep, "/"
             )
 
@@ -322,17 +313,40 @@ class Register_MultiType(object):
                             "Consider reprojecting input DEM"
                             f" X = {band_description.meanCellWidth}, Y = {band_description.meanCellHeight}"
                         )
+        
+        #check that correct input 3D data types are being used ("las", "laz", "bpf", "ply", "obj", "tif", "tiff")
+        acceptable_data_list = [".las", ".laz", ".bpf", ".ply", ".obj", ".tif", ".tiff"]
+        if parameters[0].value:
+            fnd_full_path = os.fsdecode(f"{self.getLayerPath(parameters[0].valueAsText)}").replace(os.sep, "/")
+            fnd_file_extension = os.path.splitext(fnd_full_path)[-1]
+            if fnd_file_extension not in acceptable_data_list:
+                parameters[0].setErrorMessage(
+                    "File not able to be coregistered."
+                    f" Acceptable file types are {acceptable_data_list}"
+                )
+        if parameters[1].value:
+            aoi_full_path = os.fsdecode(f"{self.getLayerPath(parameters[1].valueAsText)}").replace(os.sep, "/")
+            aoi_file_extension = os.path.splitext(aoi_full_path)[-1]
+            if aoi_file_extension not in acceptable_data_list:
+                parameters[1].setErrorMessage(
+                    "File not able to be coregistered."
+                    f" Acceptable file types are {acceptable_data_list}"
+                )
 
         return
+
+    def getLayerPath(self, layer):
+        if not os.path.exists(layer):
+        # we are working with an ArcGIS scene layer and not a file:
+            desc = arcpy.Describe(layer)
+            layer = os.path.join(desc.path, layer)
+        return layer
 
     def execute(self, parameters, messages):
         """The source code of the tool."""
 
-        fnd_dir, fnd_file = os.path.split(parameters[0].valueAsText)
-        aoi_dir, aoi_file = os.path.split(parameters[1].valueAsText)
-
-        fnd_full_path = os.fsdecode(f"{parameters[0].valueAsText}").replace(os.sep, "/")
-        aoi_full_path = os.fsdecode(f"{parameters[1].valueAsText}").replace(os.sep, "/")
+        fnd_full_path = os.fsdecode(f"{self.getLayerPath(parameters[0].valueAsText)}").replace(os.sep, "/")
+        aoi_full_path = os.fsdecode(f"{self.getLayerPath(parameters[1].valueAsText)}").replace(os.sep, "/")
         aoi_file_extension = os.path.splitext(aoi_full_path)[-1]
 
         dsm_filetypes = codem.lib.resources.dsm_filetypes
