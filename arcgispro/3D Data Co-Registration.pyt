@@ -2,11 +2,27 @@ import os
 import json
 import arcpy
 import subprocess
-import pdal
-import codem
 import dataclasses
 import math
 import numpy as np
+
+# please forgive me for what I am about to do...
+# arcgis does not activate conda environments see
+# https://community.esri.com/t5/arcgis-api-for-python-questions/conda-activate-scripts-are-not-executed-within/td-p/1230529
+try:
+    import pdal
+except json.decoder.JSONDecodeError:
+    conda_json = json.loads(
+        subprocess.run(
+            ["conda", "info", "--json"], capture_output=True
+        ).stdout
+    )
+    CONDA_PREFIX = conda_json["env_vars"]["CONDA_PREFIX"]
+    os.environ["PDAL_DRIVER_PATH"] = os.path.join(CONDA_PREFIX, "bin")
+    import pdal
+
+import codem
+
 
 class Toolbox(object):
     def __init__(self):
@@ -299,7 +315,7 @@ class Register_MultiType(object):
                     )
 
                     # CODEM requires raster cell sizes to be within 1e-5
-                    # however arcpy determines different cells sizes from gdal 
+                    # however arcpy determines different cells sizes from gdal
                     # so we apply a more forgiving tolerance as a smoke-screen check for ArcGIS users
                     if not math.isclose(
                         band_description.meanCellHeight,
@@ -313,7 +329,7 @@ class Register_MultiType(object):
                             "Consider reprojecting input DEM"
                             f" X = {band_description.meanCellWidth}, Y = {band_description.meanCellHeight}"
                         )
-        
+
         #check that correct input 3D data types are being used ("las", "laz", "bpf", "ply", "obj", "tif", "tiff")
         acceptable_data_list = [".las", ".laz", ".bpf", ".ply", ".obj", ".tif", ".tiff"]
         if parameters[0].value:
@@ -367,7 +383,7 @@ class Register_MultiType(object):
         }
         codem_run_config = codem.CodemRunConfig(fnd_full_path, aoi_full_path, **kwargs)
         config = dataclasses.asdict(codem_run_config)
-        
+
         #Add output to details pane with parameters and their values
         arcpy.AddMessage("=============PARAMETERS=============")
         for parameter, value in config.items():
