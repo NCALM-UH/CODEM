@@ -77,9 +77,44 @@ While going through the process, some things you absolutely do not want to chang
 * Never upgrade the ESRI numpy version; for ArcGIS Pro 2.9.x, it should be 1.20.1 from the `esri` channel
 * SciPy should come from the `defaults` channel.
 
+1. `conda create -n codem -c esri python==3.7.11` and then `conda activate codem`
+2. Add `pinned` file to `conda-meta` directory with the following contents:
 
-1. Start with exporting a spec-file from the arcgis provided environment `conda list --explicit > spec-file.txt`
-2. Create a new conda environment with that spec file `conda create --name codem --file spec-file.txt`
-3. Activate the environment; now there is an environment we can manipualte
-4. Upgrade the vc and vc-runtime packages `mamba upgrade -c conda-forge vs2015_runtime`
-5. Install packages using `mamba` in small increments until all the needed dependencies are there. Consider upgrading from the `default` channel packages to `conda-forge` variants.  Test _within_ ArcGIS pro periodically (this will highlight DLL errors and such).
+    ```
+    esri::python ==3.7.11
+    esri::numpy ==1.20.1
+    jinja ==2.11.3
+    proj ==9.0.1
+    ```
+3. `mamba install -c esri -c defaults numpy==1.20.1`
+4. `mamba install jinja2=2.11.3`
+5. `mamba install -c esri -c defaults arcpy arcgispro`
+6. `mamba install libzlib lerc=3.0=h0e60522_0 freetype==2.12.1=h546665d_0`
+7. `mamba install -c conda-forge -c defaults proj=9.0.0 vtk=9.2.2`
+    need to get libtiff from defaults channel not conda-forge
+8. `mamba install pdal python-pdal`
+9. `mamba install https://anaconda.org/conda-forge/pyproj/3.2.1/download/win-64/pyproj-3.2.1-py37h560fb97_6.tar.bz2`
+    does not want to install with proj > 9.0.0 so we force it
+9. `mamba install -c conda-forge -c defaults -c esri rasterio trimesh scikit-image rich`
+10. `mamba install -c fastai opencv-python-headless`
+11. `mamba upgrade setuptools pip`
+12. `conda list --explicit > specfile.txt`
+
+
+### Problematic Packages
+
+```
+esri::lerc  # pdal cannot find lerc.dll
+esri::freetype   # pdal cannot find zlib1.dll
+jinja2 >= 3.0   # esri's ancient jupyter stuff depends on jinja2 2.x
+proj >= 9.1.0   # proj 9.1
+```
+
+### Needed Packages
+
+```
+conda-forge::libzlib
+conda-forge::zlib
+conda-forge::lerc ==3.0
+main::scipy == 1.6.2
+```
