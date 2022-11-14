@@ -478,6 +478,9 @@ class Register_MultiType(object):
                 "Consider converting AOI or visualizing in other software."
             )
         else:
+            if aoi_file_extension == '.tif':
+                arcpy.management.CalculateStatistics(reg_file, 1, 1, [], "OVERWRITE", r"in_memory\feature_set1")
+                arcpy.AddMessage(f"Raster Statistics calculated for {reg_file}")
             activeMap.addDataFromPath(reg_file)
             arcpy.AddMessage(f"ActiveMap added {aoi_file_extension} file")
         return None
