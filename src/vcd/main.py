@@ -119,6 +119,8 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         os.fsdecode(os.path.abspath(args.after)),
         SPACING=float(args.spacing_override),
         VERBOSE=args.verbose,
+        GROUNDHEIGHT=float(args.ground_height),
+        RESOLUTION=float(args.resolution),
     )
     return dataclasses.asdict(config)
 
