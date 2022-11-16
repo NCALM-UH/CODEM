@@ -32,6 +32,8 @@ class VcdRunConfig:
     GROUNDHEIGHT: float = 1.0
     RESOLUTION: float = 2.0
     VERBOSE: bool = False
+    MIN_POINTS: int = 30
+    CLUSTER_TOLERANCE: float = 2.0
     OUTPUT_DIR: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -107,6 +109,18 @@ def get_args() -> argparse.Namespace:
         help="Raster output resolution",
     )
     ap.add_argument(
+        "--min_points",
+        type=int,
+        default=VcdRunConfig.MIN_POINTS,
+        help="Minimum points to cluster around",
+    )
+    ap.add_argument(
+        "--cluster_tolerance",
+        type=float,
+        default=VcdRunConfig.CLUSTER_TOLERANCE,
+        help="Cluster tolerance used by pdal.Filter.cluster",
+    )
+    ap.add_argument(
         "-v", "--verbose", action="count", default=0, help="turn on verbose logging"
     )
     args = ap.parse_args()
@@ -121,6 +135,8 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         VERBOSE=args.verbose,
         GROUNDHEIGHT=float(args.ground_height),
         RESOLUTION=float(args.resolution),
+        MIN_POINTS=int(args.min_points),
+        CLUSTER_TOLERANCE=float(args.cluster_tolerance),
     )
     return dataclasses.asdict(config)
 
