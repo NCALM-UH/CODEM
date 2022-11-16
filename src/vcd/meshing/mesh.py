@@ -59,7 +59,7 @@ class Mesh:
             hull.cluster_id = cluster_id
 
             # cull out some specific cluster IDs
-            culls = [-1, 0, 1]
+            culls = self.vcd.before.config["CULL_CLUSTER_IDS"]
 
             if cluster_id not in culls:
                 clusters.append(hull)
