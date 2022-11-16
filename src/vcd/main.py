@@ -9,6 +9,7 @@ import time
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Tuple
 
 import yaml
 from codem.lib.log import Log
@@ -34,6 +35,7 @@ class VcdRunConfig:
     VERBOSE: bool = False
     MIN_POINTS: int = 30
     CLUSTER_TOLERANCE: float = 2.0
+    CULL_CLUSTER_IDS: Tuple[int, ...] = (-1, 0, 1)
     OUTPUT_DIR: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -121,8 +123,15 @@ def get_args() -> argparse.Namespace:
         help="Cluster tolerance used by pdal.Filter.cluster",
     )
     ap.add_argument(
+        "--cull_cluster_ids",
+        type=str,
+        default=",".join(map(str, VcdRunConfig.CULL_CLUSTER_IDS)),
+        help="Coma separated list of cluster IDs to cull when producing the meshes",
+    )
+    ap.add_argument(
         "-v", "--verbose", action="count", default=0, help="turn on verbose logging"
     )
+
     args = ap.parse_args()
     return args
 
@@ -137,6 +146,7 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         RESOLUTION=float(args.resolution),
         MIN_POINTS=int(args.min_points),
         CLUSTER_TOLERANCE=float(args.cluster_tolerance),
+        CULL_CLUSTER_IDS=tuple(map(int, args.cull_cluster_ids.split(","))),
     )
     return dataclasses.asdict(config)
 

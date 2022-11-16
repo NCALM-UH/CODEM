@@ -9,6 +9,7 @@ import os
 import re
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
@@ -32,6 +33,7 @@ class VCDParameters(TypedDict):
     AFTER: str
     MIN_POINTS: int
     CLUSTER_TOLERANCE: float
+    CULL_CLUSTER_IDS: Tuple[int, ...]
     log: Log
 
 
