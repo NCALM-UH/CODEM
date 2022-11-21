@@ -41,7 +41,9 @@
     pip install .
     ```
 
-## Running CODEM
+## CoRegistration
+
+### Running CODEM
 
 The `CODEM` application has two required positional arguments and numerous options. The required positional arguments are the file path to the Foundation data file and the file path to the AOI data file. Executing codem on the command line has the following form:
 
@@ -63,7 +65,8 @@ codem demo/Foundation-PointCloud.laz demo/AOI-Mesh.ply --min_resolution 2.0
 
 A summary of all options and their default values is given in the [docs/configuration.md](docs/configuration.md) document. The default option values should be sufficient for most landscapes.
 
-## Generated Output
+
+## CODEM Generated Output
 
 All output is saved to a new directory that is created at the location of the AOI file. The directory name is tagged with the date and time of execution: `registration_YYYY-MM-DD_HH-MM-SS`. The directory contents include the following:
 
@@ -72,6 +75,22 @@ All output is saved to a new directory that is created at the location of the AO
 3. `log.txt`: A log file.
 4. `registration.txt`: Contains the solved coarse and fine registration transformation parameters and a few statistics.
 5. `dsm_feature_matches.png`: An image of the matched features used in the coarse registration step.
+
+
+## Vertical Change Detection
+
+### Running VCD
+
+In addition to the coregistration functionality, codem provides vertical change detection functionality as well based on LiDAR scans.
+
+```bash
+vcd <before_file_path> <after_file_path> [-opt option_value]
+```
+
+### VCD Generated Output
+
+Raster, Mesh and Point cloud outputs are generated (inclyding ESRI 3D Shapefiles) to highlight ground/not-ground features, and vertical changes.
+
 
 ## Additional Information
 
