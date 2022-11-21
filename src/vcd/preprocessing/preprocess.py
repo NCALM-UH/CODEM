@@ -9,6 +9,7 @@ import os
 import re
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
@@ -30,6 +31,9 @@ class VCDParameters(TypedDict):
     OUTPUT_DIR: str
     BEFORE: str
     AFTER: str
+    MIN_POINTS: int
+    CLUSTER_TOLERANCE: float
+    CULL_CLUSTER_IDS: Tuple[int, ...]
     log: Log
 
 
@@ -177,9 +181,10 @@ class VCD:
         gh = self.gh
 
         array = after[(after.Classification != 2) & (after.d3 > gh)].to_records()
-        self.ng_clusters = pdal.Filter.cluster(min_points=30, tolerance=2.0).pipeline(
-            array
-        )
+        self.ng_clusters = pdal.Filter.cluster(
+            min_points=self.after.config["MIN_POINTS"],
+            tolerance=self.after.config["CLUSTER_TOLERANCE"],
+        ).pipeline(array)
         self.ng_clusters.execute()
         ng_cluster_df = pd.DataFrame(self.ng_clusters.arrays[0])
 
@@ -194,7 +199,8 @@ class VCD:
 
         array = after[(after.Classification == 2) & (after.d3 > gh)].to_records()
         self.ground_clusters = pdal.Filter.cluster(
-            min_points=30, tolerance=2.0
+            min_points=self.after.config["MIN_POINTS"],
+            tolerance=self.after.config["CLUSTER_TOLERANCE"],
         ).pipeline(array)
         self.ground_clusters.execute()
         ground_cluster_df = pd.DataFrame(self.ground_clusters.arrays[0])
