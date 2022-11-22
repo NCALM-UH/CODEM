@@ -22,6 +22,7 @@ except json.decoder.JSONDecodeError:
     import pdal
 
 import codem
+import vcd
 
 
 class Toolbox(object):
@@ -32,7 +33,7 @@ class Toolbox(object):
         self.alias = "3d_registration"
 
         # List of tool classes associated with this toolbox
-        self.tools = [Register_MultiType]
+        self.tools = [Register_MultiType, Volumetric_Change_Detection]
 
 class Register_MultiType(object):
     def __init__(self):
@@ -484,3 +485,196 @@ class Register_MultiType(object):
             activeMap.addDataFromPath(reg_file)
             arcpy.AddMessage(f"ActiveMap added {aoi_file_extension} file")
         return None
+
+class Volumetric_Change_Detection(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Volumetric Change Detection"
+        self.description = "Developed by Brad Chambers and Howard Butler"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        """Define parameter definitions"""
+        before = arcpy.Parameter(
+            displayName="Before LiDAR Scan",
+            name="before",
+            datatype=["DEFile","DELasDataset","GPLasDatasetLayer"],
+            parameterType="Required",
+            direction="Input",
+        )
+
+        after = arcpy.Parameter(
+            displayName="After LiDAR Scan",
+            name="after",
+            datatype=["DEFile","DELasDataset","GPLasDatasetLayer"],
+            parameterType="Required",
+            direction="Input",
+        )
+        spacing = arcpy.Parameter(
+            displayName="Spacing Override",
+            name="spacing",
+            datatype="GPDouble",
+            parameterType="Optional",
+            direction="Input",
+            category="Optional Parameters"
+        )
+
+        ground_height = arcpy.Parameter(
+            displayName="Ground Height",
+            name="groundheight",
+            datatype="GPDouble",
+            parameterType="Optional",
+            direction="Input",
+            category="Optional Parameters"
+        )
+
+        resolution = arcpy.Parameter(
+            displayName="Resolution",
+            name="resolution",
+            datatype="GPDouble",
+            parameterType="Optional",
+            direction="Input",
+            category="Optional Parameters"
+        )
+
+        verbose = arcpy.Parameter(
+            displayName="Verbose",
+            name="verbose",
+            datatype="GPBoolean",
+            parameterType="Optional",
+            direction="Input",
+            category="Optional Parameters"
+
+        )
+
+        min_points = arcpy.Parameter(
+            displayName="Minimum Points",
+            name="min_points",
+            datatype="GPDouble",
+            parameterType="Optional",
+            direction="Input",
+            category="Optional Parameters"
+        )
+
+        cluster_tolerance = arcpy.Parameter(
+            displayName="Cluster Tolerance",
+            name="cluster_tolerance",
+            datatype="GPDouble",
+            parameterType="Optional",
+            direction="Input",
+            category="Optional Parameters"
+        )
+
+        spacing.value = 0.43
+        ground_height.value = 1.0
+        resolution.value = 1.0
+        min_points.value = 30.0
+        cluster_tolerance.value = 2.0
+
+        #            0     1      2         3            4         5        6              7             
+        params = [before,after,spacing,ground_height,resolution,verbose,min_points,cluster_tolerance]
+
+        spacing.value = 0.43
+        ground_height.value = 1.0
+        resolution.value = 1.0
+
+
+        params = [before,after,spacing,ground_height,resolution,verbose]
+        return params
+
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True
+
+    def updateParameters(self, parameters):
+        """Modify the values and properties of parameters before internal
+        validation is performed.  This method is called whenever a parameter
+        has been changed."""
+        return
+
+    def updateMessages(self, parameters):
+        """Modify the messages created by internal validation for each tool
+        parameter.  This method is called after internal validation."""
+        return
+
+    def getLayerPath(self, layer):
+            if not os.path.exists(layer):
+            # we are working with an ArcGIS scene layer and not a file:
+                desc = arcpy.Describe(layer)
+                layer = os.path.join(desc.path, layer)
+            return layer
+
+
+    def execute(self, parameters, messages):
+        """The source code of the tool."""
+
+        before_full_path = os.fsdecode(f"{self.getLayerPath(parameters[0].valueAsText)}").replace(os.sep, "/")
+        after_full_path = os.fsdecode(f"{self.getLayerPath(parameters[1].valueAsText)}").replace(os.sep, "/")
+        arcpy.SetProgressor("step", "Calculating Volumetric Change", 0, 5)
+
+
+        kwargs = {
+            parameter.name.upper(): parameter.value for parameter in parameters[2:]
+        }
+
+        vcd_run_config = vcd.VcdRunConfig(before_full_path, after_full_path, **kwargs)
+        config = dataclasses.asdict(vcd_run_config)
+        arcpy.AddMessage("====== PARAMETERS ======")
+        for key in config:
+            arcpy.AddMessage(f"{key} = {config[key]}")
+
+        arcpy.SetProgressorLabel("Step 1/4: Prepping Before and After Data")
+        arcpy.SetProgressorPosition()
+        arcpy.AddMessage("====== PREPROCESSING DATA ======")
+        log = codem.log.Log(config)
+        config['log']=log
+
+        arcpy.AddMessage("====== FILTERING 'BEFORE' DATA ======")
+        before = vcd.PointCloud(config, "BEFORE")
+
+        arcpy.AddMessage("====== FILTERING 'AFTER' DATA ======")
+        after = vcd.PointCloud(config, "AFTER")
+
+        arcpy.AddMessage("====== COMPUTING INDEXES FOR COMPARISON ======")
+        v = vcd.VCD(before,after)
+        v.compute_indexes()
+
+        arcpy.SetProgressorLabel("Step 2/4: Extracting Differences")
+        arcpy.SetProgressorPosition()
+        arcpy.AddMessage("====== EXTRACTING DIFFERENCES ======")
+        v.make_products()
+
+        arcpy.SetProgressorLabel("Step 3/4: Creating Clusters")
+        arcpy.SetProgressorPosition()
+        arcpy.AddMessage("====== CLUSTERING ======")
+        v.cluster()
+
+
+        arcpy.SetProgressorLabel("Step 4/4: Generating Raster and Mesh Products")
+        arcpy.SetProgressorPosition()
+        arcpy.AddMessage("====== RASTERIZING PRODUCTS ======")
+        v.rasterize()
+
+        arcpy.AddMessage("====== MESHING PRODUCTS ======")
+        m = vcd.Mesh(v)
+        m.write("non-ground", m.cluster(v.ng_clusters))
+        m.write("ground", m.cluster(v.ground_clusters))
+        v.save()
+
+        arcpy.AddMessage(vcd_run_config.OUTPUT_DIR)
+        ground_file = os.path.join(vcd_run_config.OUTPUT_DIR,"meshes","ground.shp")
+        nonground_file = os.path.join(vcd_run_config.OUTPUT_DIR,"meshes","non-ground.shp")
+
+
+        if not os.path.exists(ground_file):
+            arcpy.AddError(f"Ground file '{ground_file}' not generated")
+            return None
+        aprx = arcpy.mp.ArcGISProject("CURRENT")
+        activeMap = aprx.activeMap
+        arcpy.env.addOutputsToMap = True
+        if activeMap is None:
+            arcpy.AddWarning("activeMap is None")
+        activeMap.addDataFromPath(ground_file)
+        activeMap.addDataFromPath(nonground_file)
+        arcpy.AddMessage("ActiveMap added ground and nonground multipatch files")
+        return
