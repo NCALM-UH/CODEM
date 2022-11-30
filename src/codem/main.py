@@ -12,8 +12,10 @@ the relevant run directory within outputs/.
 import argparse
 import dataclasses
 import logging
+import math
 import os
 import time
+import warnings
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -38,7 +40,7 @@ from rich.progress import TimeElapsedColumn
 class CodemRunConfig:
     FND_FILE: str
     AOI_FILE: str
-    MIN_RESOLUTION: float = 1.0
+    MIN_RESOLUTION: float = float("nan")
     DSM_AKAZE_THRESHOLD: float = 0.0001
     DSM_LOWES_RATIO: float = 0.9
     DSM_RANSAC_MAX_ITER: int = 10000
@@ -148,7 +150,7 @@ def get_args() -> argparse.Namespace:
         "--min_resolution",
         "-min",
         type=float,
-        default=1.0,
+        default=CodemRunConfig.MIN_RESOLUTION,
         help="minimum pipeline data resolution",
     )
     ap.add_argument(
@@ -337,9 +339,18 @@ def run_console(
 def preprocess(config: Dict[str, Any]) -> Tuple[GeoData, GeoData]:
     fnd_obj = instantiate(config, fnd=True)
     aoi_obj = instantiate(config, fnd=False)
-    resolution = max(
-        fnd_obj.native_resolution, aoi_obj.native_resolution, config["MIN_RESOLUTION"]
-    )
+    if not math.isnan(config["MIN_RESOLUTION"]):
+        resolution = config["MIN_RESOLUTION"]
+        if resolution > max(fnd_obj.native_resolution, aoi_obj.native_resolution):
+            warnings.warn(
+                "Specified resolution is a coarser value in than either the "
+                "foundation or AOI, registration may fail as a result. Consider "
+                "leaving the min_resolution parameter to default value.",
+                UserWarning,
+                stacklevel=2,
+            )
+    else:
+        resolution = max(fnd_obj.native_resolution, aoi_obj.native_resolution)
     fnd_obj.resolution = aoi_obj.resolution = resolution
     return fnd_obj, aoi_obj
 
@@ -365,7 +376,7 @@ def apply_registration(
     aoi_obj: GeoData,
     icp_reg: IcpRegistration,
     config: Dict[str, Any],
-    output_format: Optional[str] = None,
+    output_format: str = None,
 ) -> str:
     app_reg = ApplyRegistration(
         fnd_obj,
