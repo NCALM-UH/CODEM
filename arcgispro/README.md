@@ -1,6 +1,6 @@
 # CODEM ArcGIS Pro Integration
 
-The CODEM package can be used within ArcGIS Pro 2.9 through the use of the [toolbox](./3D%20Data%20Co-Registration.pyt).
+The CODEM package can be used within ArcGIS Pro 2.9 and ArcGIS Pro 3.0 through the use of the [toolbox](./3D%20Data%20Co-Registration.pyt).
 
 To utilize this capability, a conda environment much be created that ArcGIS will read in, and have all the necessary dependencies installed with.
 
@@ -8,7 +8,35 @@ To utilize this capability, a conda environment much be created that ArcGIS will
 
 See TL;DR section below for shorter summary
 
-### Detailed Steps
+### Detailed Steps ArcGIS 3.0
+
+1. Download the [spec-file](./spec-file-arcgis-30.txt)
+
+    ![python_command_prompt](images/python_cmd_prompt.png)
+1. Enter the following command, where the argument to `--file` is the file-path copied in the previous step.  This command will have significant console output, and may contain warnings, that is okay.  Upon completion, close the command prompt.  In some circumstances, you may need to launch the Python Command Prompt as an adminsitrator.
+
+    ```doscon
+    (arcgispro-py3) C:\Users\ogi\AppData\Local\Programs\ArcGIS\Pro\bin\Python\envs\arcgispro-py3>conda create \
+    --name neggs \
+    --file "C:\Users\ogi\Downloads\spec-file-arcgis-30.txt"
+    ```
+
+1. Open ArcGIS Pro, go to the Package Manager tab, click on the gear icon and browse to the newly created "neggs" environment. Upon selection, activate it.
+
+    ![arcgis_30_select_neggs](images/arcgis_30_select_neggs.png)
+1. Restart ArcGIS Pro
+1. Launch ArcGIS Pro, open the desired project, and Insert a Toolbox
+
+    ![arcgis_add_toolbox](images/arcgis_add_toolbox.png)
+1. Browse to the `3D Data Co-Registration.pyt` file that is in the same directory as the spec-file from earlier.
+
+    ![arcgis_find_toolbox](images/arcgis_find_toolbox.png)
+1. The Toolbox is now available in the toolbox catalog
+
+    ![arcgis_toolbox_loaded](images/arcgis_toolbox_loaded.png)
+
+
+### Detailed Steps ArcGIS 2.9
 
 To add the codem package to the ArcGIS toolbox, there are a number of steps to be performed.
 
@@ -67,13 +95,43 @@ From the root of the of the CODEM project
 
 Within ArcGIS, go to the Python tab, and add a newly created conda environment (this can be retrieved by running `conda info | findstr /c:"active env location"` from the command prompt with the `codem` environment activated).
 
-## Creation of specfile Guide (Advanced)
+## Creation of Specfile Guide (Advanced)
 
 The following section is directed towards the maintainers of codem.  The author recognizes that the following is not a "best practice" in creating python environments, but it is the only functional steps
 
 While going through the process, some things you absolutely do not want to change
 
 * Never upgrade the ESRI python interpreter, if a conda/mamba resolver wants to upgrade the python version, cancel and attempt to install or upgrade the relative packages without doing that.
+
+### ArcGIS 3.0
+
+1. Export environment basefile from Python command prompt `conda list --explicit > specfile-base.txt`
+1. Recreate environment (ideally when you have conda accessible) `conda create -n neggs --file specfile-base.txt`
+1. Add `pinned` file to `conda-meta` directory with the following contents:
+
+    ```
+    esri::python ==3.9.11
+    esri::numpy ==1.20.1
+    ```
+1. `conda activate neggs`
+1. `mamba install -c conda-forge -c defaults -c esri pdal=2.4.3 vtk=9.2.2 codem`
+1. `mamba install lerc=3.0=lerc=3.0=h0e60522_0`
+1. `mamba upgrade setuptools pip`
+1. `conda list --explicit > specfile-arcgis30.txt`
+
+
+#### Problematic Packages
+
+```
+esri::lerc=3.0
+conda-forge::opencv
+```
+
+Try and stick with the ESRI channel variant of opencv package, and force the use of conda-forge's lerc package.
+
+### ArcGIS 2.9
+
+
 * Never upgrade the ESRI numpy version; for ArcGIS Pro 2.9.x, it should be 1.20.1 from the `esri` channel
 * SciPy should come from the `defaults` channel.
 
@@ -101,7 +159,7 @@ While going through the process, some things you absolutely do not want to chang
 12. `conda list --explicit > specfile.txt`
 
 
-### Problematic Packages
+#### Problematic Packages
 
 ```
 esri::lerc  # pdal cannot find lerc.dll
@@ -110,7 +168,7 @@ jinja2 >= 3.0   # esri's ancient jupyter stuff depends on jinja2 2.x
 proj >= 9.1.0   # proj 9.1
 ```
 
-### Needed Packages
+#### Needed Packages
 
 ```
 conda-forge::libzlib
