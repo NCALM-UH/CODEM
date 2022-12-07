@@ -335,17 +335,41 @@ class Register_MultiType(object):
         acceptable_data_list = [".las", ".laz", ".bpf", ".ply", ".obj", ".tif", ".tiff"]
         if parameters[0].value:
             fnd_full_path = os.fsdecode(f"{self.getLayerPath(parameters[0].valueAsText)}").replace(os.sep, "/")
-            fnd_file_extension = os.path.splitext(fnd_full_path)[-1]
+            
+            fnd_file_split = os.path.split(fnd_full_path)
+            fnd_file_extension = ""
+            fnd_file_base = os.path.splitext(fnd_file_split[0])
+            fnd_file_tail = os.path.splitext(fnd_file_split[1])
+
+            #getting the proper file extension, accounting for case where raster band appears as the last item in file path, such as C:/my/path/file.tif/band_1
+            if fnd_file_base[-1] is not "":
+                fnd_file_extension = fnd_file_base[-1]
+            else:
+                fnd_file_extension = fnd_file_tail[-1]
+
             if fnd_file_extension not in acceptable_data_list:
                 parameters[0].setErrorMessage(
                     "File not able to be coregistered."
                     f" Acceptable file types are {acceptable_data_list}"
                 )
+
+                
         if parameters[1].value:
             aoi_full_path = os.fsdecode(f"{self.getLayerPath(parameters[1].valueAsText)}").replace(os.sep, "/")
-            aoi_file_extension = os.path.splitext(aoi_full_path)[-1]
+            
+            aoi_file_split = os.path.split(aoi_full_path)
+            aoi_file_extension = ""
+            aoi_file_base = os.path.splitext(aoi_file_split[0])
+            aoi_file_tail = os.path.splitext(aoi_file_split[1])
+
+            #getting the proper file extension, accounting for case where raster band appears as the last item in file path, such as C:/my/path/file.tif/band_1
+            if aoi_file_base[-1] is not "":
+                aoi_file_extension = aoi_file_base[-1]
+            else:
+                aoi_file_extension = aoi_file_tail[-1]
+
             if aoi_file_extension not in acceptable_data_list:
-                parameters[1].setErrorMessage(
+                parameters[0].setErrorMessage(
                     "File not able to be coregistered."
                     f" Acceptable file types are {acceptable_data_list}"
                 )
