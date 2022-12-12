@@ -86,6 +86,7 @@ module = [
   "pyproj.crs",
   "pyproj.database",
   "pyproj.enums",
+  "pyproj.transformer",
   "rasterio",
   "rasterio.crs",
   "rasterio.enums",
