@@ -416,7 +416,7 @@ def apply_registration(
     aoi_obj: GeoData,
     icp_reg: IcpRegistration,
     config: Dict[str, Any],
-    output_format: str = None,
+    output_format: Optional[str] = None,
 ) -> str:
     app_reg = ApplyRegistration(
         fnd_obj,
