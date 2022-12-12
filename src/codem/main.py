@@ -12,12 +12,16 @@ the relevant run directory within outputs/.
 import argparse
 import dataclasses
 import logging
+import math
 import os
 import time
+import warnings
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import yaml
 from codem.lib.log import Log
@@ -27,18 +31,56 @@ from codem.registration import ApplyRegistration
 from codem.registration import DsmRegistration
 from codem.registration import IcpRegistration
 from distutils.util import strtobool
-from rich.console import Console
-from rich.logging import RichHandler
-from rich.progress import Progress
-from rich.progress import SpinnerColumn
-from rich.progress import TimeElapsedColumn
+
+try:
+    import rich
+except ImportError:
+    _has_rich = False
+    from contextlib import ContextDecorator
+
+    class Progress(ContextDecorator):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__()
+
+        def __enter__(self, *args: Any, **kwargs: Any) -> Any:
+            return self
+
+        def __exit__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def add_task(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def advance(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        @staticmethod
+        def get_default_columns() -> List:
+            return []
+
+    class Dummy:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self.level = float("-inf")
+
+        def print(self, *args: Any, **kwargs: Any) -> None:
+            print(*args)
+
+    Console = Dummy  # type: ignore
+    SpinnerColumn = TimeElapsedColumn = object  # type: ignore
+else:
+    _has_rich = True
+    from rich.console import Console  # type: ignore
+    from rich.logging import RichHandler  # type: ignore
+    from rich.progress import Progress  # type: ignore
+    from rich.progress import SpinnerColumn  # type: ignore
+    from rich.progress import TimeElapsedColumn  # type: ignore
 
 
 @dataclasses.dataclass
 class CodemRunConfig:
     FND_FILE: str
     AOI_FILE: str
-    MIN_RESOLUTION: float = 1.0
+    MIN_RESOLUTION: float = float("nan")
     DSM_AKAZE_THRESHOLD: float = 0.0001
     DSM_LOWES_RATIO: float = 0.9
     DSM_RANSAC_MAX_ITER: int = 10000
@@ -148,7 +190,7 @@ def get_args() -> argparse.Namespace:
         "--min_resolution",
         "-min",
         type=float,
-        default=1.0,
+        default=CodemRunConfig.MIN_RESOLUTION,
         help="minimum pipeline data resolution",
     )
     ap.add_argument(
@@ -337,9 +379,18 @@ def run_console(
 def preprocess(config: Dict[str, Any]) -> Tuple[GeoData, GeoData]:
     fnd_obj = instantiate(config, fnd=True)
     aoi_obj = instantiate(config, fnd=False)
-    resolution = max(
-        fnd_obj.native_resolution, aoi_obj.native_resolution, config["MIN_RESOLUTION"]
-    )
+    if not math.isnan(config["MIN_RESOLUTION"]):
+        resolution = config["MIN_RESOLUTION"]
+        if resolution > max(fnd_obj.native_resolution, aoi_obj.native_resolution):
+            warnings.warn(
+                "Specified resolution is a coarser value in than either the "
+                "foundation or AOI, registration may fail as a result. Consider "
+                "leaving the min_resolution parameter to default value.",
+                UserWarning,
+                stacklevel=2,
+            )
+    else:
+        resolution = max(fnd_obj.native_resolution, aoi_obj.native_resolution)
     fnd_obj.resolution = aoi_obj.resolution = resolution
     return fnd_obj, aoi_obj
 
@@ -384,9 +435,17 @@ def main() -> None:
     args = get_args()
     config = create_config(args)
     console = Console()
-    rich_handler = RichHandler(level="DEBUG", console=console, markup=False)
+
+    log_handler: Union[rich.logging.RichHandler, logging.StreamHandler]
+    if _has_rich:
+        log_handler = rich.logging.RichHandler(
+            level="DEBUG", console=console, markup=False
+        )
+    else:
+        log_handler = logging.StreamHandler()
+        log_handler.setLevel(logging.DEBUG)
     codem_logger = Log(config)
-    codem_logger.logger.addHandler(rich_handler)
+    codem_logger.logger.addHandler(log_handler)
     run_console(config, codem_logger.logger, console)
 
 
