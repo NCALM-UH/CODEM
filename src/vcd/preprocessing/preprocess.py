@@ -5,6 +5,8 @@ Date: February 2021
 
 """
 import contextlib
+import itertools
+import math
 import os
 import re
 from typing import List
@@ -18,9 +20,9 @@ import pdal
 import rasterio
 from codem.lib.log import Log
 from pyproj import CRS
-from pyproj import Transformer
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info  # type: ignore
+from pyproj.transformer import TransformerGroup
 from scipy.spatial import cKDTree
 from typing_extensions import TypedDict
 
@@ -92,15 +94,20 @@ class PointCloud:
                     # we just take the first one. If there's more we are screwed
                     break
 
-            transformer = Transformer.from_crs(srs, 4326)
-            dd = transformer.transform(
-                (bounds["minx"], bounds["maxx"]), (bounds["miny"], bounds["maxy"])
-            )
-
+            tg = TransformerGroup(srs, 4326, always_xy=True)
+            for transformer in tg.transformers:
+                dd = transformer.transform(
+                    (bounds["minx"], bounds["maxx"]), (bounds["miny"], bounds["maxy"])
+                )
+                if all(math.isfinite(value) for value in itertools.chain(*dd)):
+                    break
+            else:
+                raise ValueError(
+                    "Unable to find transform not resulting in all finite values"
+                )
             # stolen from Alan https://gis.stackexchange.com/a/423614/350
 
             # dd now in the form ((41.469221251843926, 41.47258675464548), (-93.68979255724548, -93.68530098082489))
-
             aoi = AreaOfInterest(
                 west_lon_degree=dd[1][0],
                 south_lat_degree=dd[0][0],
@@ -109,7 +116,6 @@ class PointCloud:
             )
 
             utm_crs_list = query_utm_crs_info(area_of_interest=aoi, datum_name="WGS 84")
-
             crs = CRS.from_epsg(utm_crs_list[0].code)
 
             utm = f"EPSG:{crs.to_epsg()}"
