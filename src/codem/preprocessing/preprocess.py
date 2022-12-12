@@ -99,7 +99,7 @@ class GeoData:
         self._resolution = 0.0
         self.native_resolution = 0.0
         self.units_factor = 1.0
-        self.units = None
+        self.units: Optional[str] = None
         self.weak_size = config["DSM_WEAK_FILTER"]
         self.strong_size = config["DSM_STRONG_FILTER"]
 
@@ -630,10 +630,13 @@ class Mesh(GeoData):
 
         mesh = trimesh.load_mesh(self.file)
         tag = ["AOI", "Foundation"][int(self.fnd)]
-        if mesh.units is None:
+
+        if not hasattr(mesh, "units") or mesh.units is None:
             self.logger.warning(
                 f"Linear unit for {tag}-{self.type.upper()} not detected --> meters assumed"
             )
+            self.units_factor = 1.0
+            self.units = "meters"
         else:
             self.logger.info(
                 f"Linear unit for {tag}-{self.type.upper()} detected as {mesh.units}"
