@@ -47,6 +47,8 @@ class Mesh:
             z = arr["Z"]
             cluster_id = arr[0][dimension]
             classification = arr[0]["Classification"]
+            # breakpoint()
+            status = np.average(arr["dZ3d"])
 
             points = np.vstack((x, y, z)).T
 
@@ -59,6 +61,7 @@ class Mesh:
             hull = pc.convex_hull
             hull.cluster_id = cluster_id
             hull.classification = classification
+            hull.status = status
 
             # cull out some specific cluster IDs
             culls = self.vcd.before.config["CULL_CLUSTER_IDS"]
@@ -83,6 +86,7 @@ class Mesh:
             w.field("area", "N", decimal=2)
             w.field("clusterid", "N")
             w.field("ground", "L")
+            w.field("status","C")
 
             # Save CRS WKT
             with open(f"{outfile}.prj", "w") as f:
@@ -94,4 +98,8 @@ class Mesh:
                     partTypes=[TRIANGLE_STRIP] * len(cluster.triangles),
                 )  # one type for each part
                 is_ground = cluster.classification == 2
-                w.record(cluster.volume, cluster.area, cluster.cluster_id, is_ground)
+                if cluster.status <= 0:
+                    status = "Fled"
+                else:
+                    status = "New"
+                w.record(cluster.volume, cluster.area, cluster.cluster_id, is_ground,status)
