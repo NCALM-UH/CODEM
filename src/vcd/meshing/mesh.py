@@ -47,7 +47,6 @@ class Mesh:
             z = arr["Z"]
             cluster_id = arr[0][dimension]
             classification = arr[0]["Classification"]
-            # breakpoint()
             status = np.average(arr["dZ3d"])
 
             points = np.vstack((x, y, z)).T
