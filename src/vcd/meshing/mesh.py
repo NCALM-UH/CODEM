@@ -85,7 +85,7 @@ class Mesh:
             w.field("area", "N", decimal=2)
             w.field("clusterid", "N")
             w.field("ground", "L")
-            w.field("status","C")
+            w.field("status", "C")
 
             # Save CRS WKT
             with open(f"{outfile}.prj", "w") as f:
@@ -101,4 +101,4 @@ class Mesh:
                     status = "Fled"
                 else:
                     status = "New"
-                w.record(cluster.volume, cluster.area, cluster.cluster_id, is_ground,status)
+                w.record(cluster.volume, cluster.area, cluster.cluster_id, is_ground, status)
