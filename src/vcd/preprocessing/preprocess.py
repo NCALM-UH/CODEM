@@ -8,6 +8,7 @@ import contextlib
 import os
 import re
 from typing import List
+from typing import NamedTuple
 from typing import Optional
 from typing import Tuple
 
@@ -37,16 +38,23 @@ class VCDParameters(TypedDict):
     log: Log
 
 
+class Product(NamedTuple):
+    df: pd.DataFrame
+    z_name: str
+    description: str = ""
+    colorscale: str = "RdBu"
+
+    @property
+    def slug(self) -> str:
+        """Adapted from https://stackoverflow.com/a/8366771/498396"""
+        return re.sub(r"[^0-9A-Za-z.]", "-", self.description.lower())
+
+
 def get_json(filename: str) -> str:
     with contextlib.suppress(IOError):
         with open(filename, "r") as f:
             content = f.read()
     return content
-
-
-def slugify(text: str) -> str:
-    """Adapted from https://stackoverflow.com/a/8366771/498396"""
-    return re.sub(r"[^0-9A-Za-z.]", "-", text.lower())
 
 
 class PointCloud:
@@ -159,7 +167,7 @@ class VCD:
     def __init__(self, before: PointCloud, after: PointCloud) -> None:
         self.before = before
         self.after = after
-        self.products: List[pd.DataFrame] = []
+        self.products: List[Product] = []
         self.gh = before.config["GROUNDHEIGHT"]
         self.resolution = before.config["RESOLUTION"]
 
@@ -279,13 +287,11 @@ class VCD:
         description: str = "",
         colorscale: str = "RdBu",
     ) -> pd.DataFrame:
-        product = x.to_frame().join(y.to_frame()).join(z.to_frame())
-        product.z = z.name
-        product.slug = slugify(description)
-        product.description = description
-        product.colorscale = colorscale
-        product.status = status
-        return product
+        df = x.to_frame().join(y.to_frame()).join(z.to_frame())
+        df = df.assign(status=status)
+        return Product(
+            df=df, z_name=z.name, description=description, colorscale=colorscale
+        )
 
     def rasterize(self) -> None:
         resolution = self.before.config["RESOLUTION"]
@@ -303,12 +309,16 @@ class VCD:
 
         def _rasterize(product: pd.DataFrame, utm: str) -> str:
 
-            array = product.to_records()
-            array = rfn.rename_fields(array, {product.z: "Z"})
+            array = product.df.to_records()
+            array = rfn.rename_fields(array, {product.z_name: "Z"})
 
             outfile = os.path.join(products_dir, product.slug) + ".tif"
 
-            metadata = f"TIFFTAG_XRESOLUTION={resolution},TIFFTAG_YRESOLUTION={resolution},TIFFTAG_IMAGEDESCRIPTION={product.description}"
+            metadata = (
+                f"TIFFTAG_XRESOLUTION={resolution},"
+                f"TIFFTAG_YRESOLUTION={resolution},"
+                f"TIFFTAG_IMAGEDESCRIPTION={product.description}"
+            )
             gdalopts = "MAX_Z_ERROR=0.01,COMPRESS=LERC_ZSTD,OVERVIEW_COMPRESS=LERC_ZSTD,BIGTIFF=YES"
 
             pipeline = pdal.Writer.gdal(
