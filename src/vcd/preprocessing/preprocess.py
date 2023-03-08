@@ -8,6 +8,7 @@ import contextlib
 import os
 import re
 from typing import List
+from typing import NamedTuple
 from typing import Optional
 from typing import Tuple
 
@@ -37,16 +38,23 @@ class VCDParameters(TypedDict):
     log: Log
 
 
+class Product(NamedTuple):
+    df: pd.DataFrame
+    z_name: str
+    description: str = ""
+    colorscale: str = "RdBu"
+
+    @property
+    def slug(self) -> str:
+        """Adapted from https://stackoverflow.com/a/8366771/498396"""
+        return re.sub(r"[^0-9A-Za-z.]", "-", self.description.lower())
+
+
 def get_json(filename: str) -> str:
     with contextlib.suppress(IOError):
         with open(filename, "r") as f:
             content = f.read()
     return content
-
-
-def slugify(text: str) -> str:
-    """Adapted from https://stackoverflow.com/a/8366771/498396"""
-    return re.sub(r"[^0-9A-Za-z.]", "-", text.lower())
 
 
 class PointCloud:
@@ -159,7 +167,7 @@ class VCD:
     def __init__(self, before: PointCloud, after: PointCloud) -> None:
         self.before = before
         self.after = after
-        self.products: List[pd.DataFrame] = []
+        self.products: List[Product] = []
         self.gh = before.config["GROUNDHEIGHT"]
         self.resolution = before.config["RESOLUTION"]
 
@@ -200,7 +208,6 @@ class VCD:
             ng_cluster_df.X,
             ng_cluster_df.Y,
             ng_cluster_df.ClusterID,
-            after["d2"],
             description=f"Non-ground clusters greater than {gh:.2f} height",
             colorscale="IceFire",
         )
@@ -218,7 +225,6 @@ class VCD:
             ground_cluster_df.X,
             ground_cluster_df.Y,
             ground_cluster_df.ClusterID,
-            after["d2"],
             description=f"Ground clusters greater than {gh:.2f} height",
             colorscale="IceFire",
         )
@@ -230,7 +236,7 @@ class VCD:
         resolution = self.resolution
 
         p = self.make_product(
-            after.X, after.Y, after.dZ3d, after["d3"], description="Before minus after"
+            after.X, after.Y, after.dZ3d, description="Before minus after"
         )
         self.products.append(p)
 
@@ -238,7 +244,6 @@ class VCD:
             after[after.d3 < gh].X,
             after[after.d3 < gh].Y,
             after[after.d3 < gh].dZ3d,
-            after["d3"],
             f"Points within {resolution:.2f}m difference",
         )
         self.products.append(p)
@@ -247,7 +252,6 @@ class VCD:
             after[after.d3 > gh].X,
             after[after.d3 > gh].Y,
             after[after.d3 > gh].dZ3d,
-            after["d3"],
             f"Points more than {resolution:.2f}m difference",
         )
         self.products.append(p)
@@ -256,7 +260,6 @@ class VCD:
             after[(after.Classification == 2) & (after.d3 > gh)].X,
             after[(after.Classification == 2) & (after.d3 > gh)].Y,
             after[(after.Classification == 2) & (after.d3 > gh)].dZ3d,
-            after["d3"],
             f"Ground points more than {resolution:.2f}m difference",
         )
         self.products.append(p)
@@ -265,7 +268,6 @@ class VCD:
             after[(after.Classification != 2) & (after.d3 > gh)].X,
             after[(after.Classification != 2) & (after.d3 > gh)].Y,
             after[(after.Classification != 2) & (after.d3 > gh)].dZ3d,
-            after["d3"],
             f"Non-ground points more than {resolution:.2f}m difference",
         )
         self.products.append(p)
@@ -275,17 +277,13 @@ class VCD:
         x: pd.Series,
         y: pd.Series,
         z: pd.Series,
-        status: pd.Series,
         description: str = "",
         colorscale: str = "RdBu",
     ) -> pd.DataFrame:
-        product = x.to_frame().join(y.to_frame()).join(z.to_frame())
-        product.z = z.name
-        product.slug = slugify(description)
-        product.description = description
-        product.colorscale = colorscale
-        product.status = status
-        return product
+        df = x.to_frame().join(y.to_frame()).join(z.to_frame())
+        return Product(
+            df=df, z_name=z.name, description=description, colorscale=colorscale
+        )
 
     def rasterize(self) -> None:
         resolution = self.before.config["RESOLUTION"]
@@ -303,12 +301,16 @@ class VCD:
 
         def _rasterize(product: pd.DataFrame, utm: str) -> str:
 
-            array = product.to_records()
-            array = rfn.rename_fields(array, {product.z: "Z"})
+            array = product.df.to_records()
+            array = rfn.rename_fields(array, {product.z_name: "Z"})
 
             outfile = os.path.join(products_dir, product.slug) + ".tif"
 
-            metadata = f"TIFFTAG_XRESOLUTION={resolution},TIFFTAG_YRESOLUTION={resolution},TIFFTAG_IMAGEDESCRIPTION={product.description}"
+            metadata = (
+                f"TIFFTAG_XRESOLUTION={resolution},"
+                f"TIFFTAG_YRESOLUTION={resolution},"
+                f"TIFFTAG_IMAGEDESCRIPTION={product.description}"
+            )
             gdalopts = "MAX_Z_ERROR=0.01,COMPRESS=LERC_ZSTD,OVERVIEW_COMPRESS=LERC_ZSTD,BIGTIFF=YES"
 
             pipeline = pdal.Writer.gdal(
