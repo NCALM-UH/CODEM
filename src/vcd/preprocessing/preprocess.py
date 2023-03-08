@@ -208,7 +208,6 @@ class VCD:
             ng_cluster_df.X,
             ng_cluster_df.Y,
             ng_cluster_df.ClusterID,
-            after["d2"],
             description=f"Non-ground clusters greater than {gh:.2f} height",
             colorscale="IceFire",
         )
@@ -226,7 +225,6 @@ class VCD:
             ground_cluster_df.X,
             ground_cluster_df.Y,
             ground_cluster_df.ClusterID,
-            after["d2"],
             description=f"Ground clusters greater than {gh:.2f} height",
             colorscale="IceFire",
         )
@@ -238,7 +236,7 @@ class VCD:
         resolution = self.resolution
 
         p = self.make_product(
-            after.X, after.Y, after.dZ3d, after["d3"], description="Before minus after"
+            after.X, after.Y, after.dZ3d, description="Before minus after"
         )
         self.products.append(p)
 
@@ -246,7 +244,6 @@ class VCD:
             after[after.d3 < gh].X,
             after[after.d3 < gh].Y,
             after[after.d3 < gh].dZ3d,
-            after["d3"],
             f"Points within {resolution:.2f}m difference",
         )
         self.products.append(p)
@@ -255,7 +252,6 @@ class VCD:
             after[after.d3 > gh].X,
             after[after.d3 > gh].Y,
             after[after.d3 > gh].dZ3d,
-            after["d3"],
             f"Points more than {resolution:.2f}m difference",
         )
         self.products.append(p)
@@ -264,7 +260,6 @@ class VCD:
             after[(after.Classification == 2) & (after.d3 > gh)].X,
             after[(after.Classification == 2) & (after.d3 > gh)].Y,
             after[(after.Classification == 2) & (after.d3 > gh)].dZ3d,
-            after["d3"],
             f"Ground points more than {resolution:.2f}m difference",
         )
         self.products.append(p)
@@ -273,7 +268,6 @@ class VCD:
             after[(after.Classification != 2) & (after.d3 > gh)].X,
             after[(after.Classification != 2) & (after.d3 > gh)].Y,
             after[(after.Classification != 2) & (after.d3 > gh)].dZ3d,
-            after["d3"],
             f"Non-ground points more than {resolution:.2f}m difference",
         )
         self.products.append(p)
@@ -283,12 +277,10 @@ class VCD:
         x: pd.Series,
         y: pd.Series,
         z: pd.Series,
-        status: pd.Series,
         description: str = "",
         colorscale: str = "RdBu",
     ) -> pd.DataFrame:
         df = x.to_frame().join(y.to_frame()).join(z.to_frame())
-        df = df.assign(status=status)
         return Product(
             df=df, z_name=z.name, description=description, colorscale=colorscale
         )
