@@ -12,6 +12,8 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Tuple
 
+import matplotlib.colors as colors
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import pandas as pd
@@ -368,14 +370,42 @@ class VCD:
             os.path.join(self.before.config["OUTPUT_DIR"], "points", "gnd-clusters")
             + format
         )
+        crs = self.after.crs
         pipeline = pdal.Writer.las(
-            minor_version=4, filename=new_ground, extra_dims="all"
+            filename=new_ground,
+            extra_dims="all",
+            a_srs=crs.to_string() if crs is not None else crs,
         ).pipeline(self.ng_clusters.arrays[0])
         pipeline.execute()
 
+        array = self.ground_clusters.arrays[0]
+
+        # Color the point cloud with a new/fled gradient
+        flex_max = array["dZ3d"].min()
+        new_max = array["dZ3d"].max()
+
+        fled = np.flipud(plt.cm.Reds(np.linspace(0.0, 1.0, 256)))
+        new = plt.cm.Blues(np.linspace(0.0, 1.0, 256))
+
+        all_colors = np.vstack((fled, new))
+        terrain_map = colors.LinearSegmentedColormap.from_list(
+            "terrain_map", all_colors
+        )
+        divnorm = colors.TwoSlopeNorm(vmin=flex_max, vcenter=0, vmax=new_max)
+        rgb = np.array(
+            [
+                colors.to_rgba_array(terrain_map(divnorm(array["dZ3d"])))
+                * np.iinfo(np.uint16).max
+            ],
+            dtype=np.uint16,
+        )[0, :, :-1]
+        array = rfn.append_fields(
+            array, ["Red", "Green", "Blue"], [rgb[:, 0], rgb[:, 1], rgb[:, 2]]
+        )
+
         pipeline = pdal.Writer.las(
-            minor_version=4,
             filename=ground,
+            a_srs=crs.to_string() if crs is not None else crs,
             extra_dims="all",
-        ).pipeline(self.ground_clusters.arrays[0])
+        ).pipeline(array)
         pipeline.execute()
