@@ -323,6 +323,10 @@ class VCD:
                 resolution=resolution,
             ).pipeline(array)
             pipeline.execute()
+
+            # TODO:
+            # look at adding the colortable
+            # https://gis.stackexchange.com/questions/325615/store-geotiff-with-color-table-python/325751#325751
             return outfile
 
         def _merge(rasters: List[str], output_type: str) -> None:
@@ -383,6 +387,8 @@ class VCD:
         # Color the point cloud with a new/fled gradient
         flex_max = array["dZ3d"].min()
         new_max = array["dZ3d"].max()
+
+        # TODO: use product.colorscale colormap instead of manually specified variant.
 
         fled = np.flipud(plt.cm.Reds(np.linspace(0.0, 1.0, 256)))
         new = plt.cm.Blues(np.linspace(0.0, 1.0, 256))
