@@ -17,6 +17,7 @@ import numpy.lib.recfunctions as rfn
 import pandas as pd
 import pdal
 import rasterio
+from codem import __version__
 from codem.lib.log import Log
 from pyproj import CRS
 from pyproj.aoi import AreaOfInterest
@@ -88,7 +89,6 @@ class PointCloud:
 
     def open(self) -> pdal.Pipeline:
         def _get_utm(pipeline: pdal.Pipeline) -> pdal.Pipeline:
-
             data = pipeline.quickinfo
             is_reader = [[k.split(".")[0] == "readers", k] for k in data.keys()]
             for k in is_reader:
@@ -172,7 +172,6 @@ class VCD:
         self.resolution = before.config["RESOLUTION"]
 
     def compute_indexes(self) -> None:
-
         after = self.after.df
         before = self.before.df
 
@@ -192,7 +191,6 @@ class VCD:
         after["d3"] = d3d
 
     def cluster(self) -> None:
-
         after = self.after.df
         gh = self.gh
 
@@ -300,7 +298,6 @@ class VCD:
         os.makedirs(products_dir, exist_ok=True)
 
         def _rasterize(product: pd.DataFrame, utm: str) -> str:
-
             array = product.df.to_records()
             array = rfn.rename_fields(array, {product.z_name: "Z"})
 
@@ -310,8 +307,14 @@ class VCD:
                 f"TIFFTAG_XRESOLUTION={resolution},"
                 f"TIFFTAG_YRESOLUTION={resolution},"
                 f"TIFFTAG_IMAGEDESCRIPTION={product.description}"
+                f"CODEM_VERSION={__version__}"
             )
-            gdalopts = "MAX_Z_ERROR=0.01,COMPRESS=LERC_ZSTD,OVERVIEW_COMPRESS=LERC_ZSTD,BIGTIFF=YES"
+            gdalopts = (
+                "MAX_Z_ERROR=0.01,"
+                "COMPRESS=LERC_ZSTD,"
+                "OVERVIEW_COMPRESS=LERC_ZSTD,"
+                "BIGTIFF=YES"
+            )
 
             pipeline = pdal.Writer.gdal(
                 filename=outfile,
@@ -324,7 +327,6 @@ class VCD:
             return outfile
 
         def _merge(rasters: List[str], output_type: str) -> None:
-
             with rasterio.open(rasters[0]) as src0:
                 meta = src0.meta
                 descriptions = src0.descriptions
@@ -341,10 +343,8 @@ class VCD:
             outfile = os.path.join(summary_dir, output_type) + ".tif"
 
             with rasterio.open(outfile, "w", **meta) as dst:
-
                 for index, layer in enumerate(rasters, start=1):
                     with rasterio.open(layer) as src:
-
                         band_description = src.tags()["TIFFTAG_IMAGEDESCRIPTION"]
                         band = src.read(band_id)
 

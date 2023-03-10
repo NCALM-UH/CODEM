@@ -71,8 +71,8 @@ class IcpRegistration:
         self.initial_transform = dsm_reg.registration_parameters["matrix"]
         self.outlier_thresh = dsm_reg.registration_parameters["rmse_3d"]
         self.config = config
-        self.residual_origins = np.empty((0, 0), np.double)
-        self.residual_vectors = np.empty((0, 0), np.double)
+        self.residual_origins: np.ndarray = np.empty((0, 0), np.double)
+        self.residual_vectors: np.ndarray = np.empty((0, 0), np.double)
 
         assert (
             self.fixed.shape[1] == 3
