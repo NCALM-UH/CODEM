@@ -77,6 +77,7 @@ module = [
   "cv2",
   "enlighten",
   "matplotlib",
+  "matplotlib.colors",
   "matplotlib.pyplot",
   "matplotlib.tri",
   "pandas",

@@ -12,6 +12,8 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Tuple
 
+import matplotlib.colors as colors
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import pandas as pd
@@ -35,6 +37,7 @@ class VCDParameters(TypedDict):
     MIN_POINTS: int
     CLUSTER_TOLERANCE: float
     CULL_CLUSTER_IDS: Tuple[int, ...]
+    COLORMAP: str
     log: Log
 
 
@@ -42,7 +45,6 @@ class Product(NamedTuple):
     df: pd.DataFrame
     z_name: str
     description: str = ""
-    colorscale: str = "RdBu"
 
     @property
     def slug(self) -> str:
@@ -209,7 +211,6 @@ class VCD:
             ng_cluster_df.Y,
             ng_cluster_df.ClusterID,
             description=f"Non-ground clusters greater than {gh:.2f} height",
-            colorscale="IceFire",
         )
         self.products.append(p)
 
@@ -226,7 +227,6 @@ class VCD:
             ground_cluster_df.Y,
             ground_cluster_df.ClusterID,
             description=f"Ground clusters greater than {gh:.2f} height",
-            colorscale="IceFire",
         )
         self.products.append(p)
 
@@ -278,12 +278,9 @@ class VCD:
         y: pd.Series,
         z: pd.Series,
         description: str = "",
-        colorscale: str = "RdBu",
     ) -> pd.DataFrame:
         df = x.to_frame().join(y.to_frame()).join(z.to_frame())
-        return Product(
-            df=df, z_name=z.name, description=description, colorscale=colorscale
-        )
+        return Product(df=df, z_name=z.name, description=description)
 
     def rasterize(self) -> None:
         resolution = self.before.config["RESOLUTION"]
@@ -360,22 +357,55 @@ class VCD:
     def save(self, format: str = ".las") -> None:
         with contextlib.suppress(FileExistsError):
             os.mkdir(os.path.join(self.before.config["OUTPUT_DIR"], "points"))
-        new_ground = (
-            os.path.join(self.before.config["OUTPUT_DIR"], "points", "ng-clusters")
-            + format
-        )
-        ground = (
-            os.path.join(self.before.config["OUTPUT_DIR"], "points", "gnd-clusters")
-            + format
-        )
-        pipeline = pdal.Writer.las(
-            minor_version=4, filename=new_ground, extra_dims="all"
-        ).pipeline(self.ng_clusters.arrays[0])
-        pipeline.execute()
 
-        pipeline = pdal.Writer.las(
-            minor_version=4,
-            filename=ground,
-            extra_dims="all",
-        ).pipeline(self.ground_clusters.arrays[0])
-        pipeline.execute()
+        # Determine Colormap
+        flex_max = min(
+            clusters.arrays[0]["dZ3d"].min()
+            for clusters in (self.ng_clusters, self.ground_clusters)
+        )
+
+        new_max = max(
+            clusters.arrays[0]["dZ3d"].max()
+            for clusters in (self.ng_clusters, self.ground_clusters)
+        )
+
+        divnorm = colors.TwoSlopeNorm(vmin=flex_max, vcenter=0, vmax=new_max)
+        # we are only writing the first point-clouds
+        colormap = plt.colormaps[self.before.config["COLORMAP"]]
+
+        # write point cloud output
+        for output in ("ground", "new_ground"):
+
+            if output == "ground":
+                path = "gnd-clusters"
+                array = self.ground_clusters.arrays[0]
+            elif output == "new_ground":
+                path = "ng-clusters"
+                array = self.ng_clusters.arrays[0]
+            else:
+                raise RuntimeError("How did you even get here?")
+
+            filename = os.path.join(
+                self.before.config["OUTPUT_DIR"], "points", f"{path}{format}"
+            )
+
+            # convert colors from [0. 1] floats to [0, 65535] per LAS spec
+            rgb = np.array(
+                [
+                    colors.to_rgba_array(colormap(divnorm(array["dZ3d"])))
+                    * np.iinfo(np.uint16).max
+                ],
+                dtype=np.uint16,
+            )[0, :, :-1]
+
+            array = rfn.append_fields(
+                array, ["Red", "Green", "Blue"], [rgb[:, 0], rgb[:, 1], rgb[:, 2]]
+            )
+
+            crs = self.after.crs
+            pipeline = pdal.Writer.las(
+                filename=filename,
+                extra_dims="all",
+                a_srs=crs.to_string() if crs is not None else crs,
+            ).pipeline(array)
+            pipeline.execute()
