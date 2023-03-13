@@ -180,19 +180,13 @@ class VCD:
         after = self.after.df
         before = self.before.df
 
-        tree2d = cKDTree(before[["X", "Y"]])
-        d2d, i2d = tree2d.query(after[["X", "Y"]], k=1)
         tree3d = cKDTree(before[["X", "Y", "Z"]])
         d3d, i3d = tree3d.query(after[["X", "Y", "Z"]], k=1)
 
-        after["dX2d"] = after.X - before.iloc[i2d].X.values
-        after["dY2d"] = after.Y - before.iloc[i2d].Y.values
-        after["dZ2d"] = after.Z - before.iloc[i2d].Z.values
         after["dX3d"] = after.X - before.iloc[i3d].X.values
         after["dY3d"] = after.Y - before.iloc[i3d].Y.values
         after["dZ3d"] = after.Z - before.iloc[i3d].Z.values
 
-        after["d2"] = d2d
         after["d3"] = d3d
 
     def cluster(self) -> None:
