@@ -25,6 +25,7 @@ import numpy as np
 import pdal
 import rasterio
 import trimesh
+from codem import __version__
 from codem.preprocessing.preprocess import GeoData
 from codem.preprocessing.preprocess import RegistrationParameters
 from matplotlib.tri import LinearTriInterpolator
@@ -159,7 +160,7 @@ class ApplyRegistration:
         """
         input_name = os.path.basename(self.aoi_file)
         root, ext = os.path.splitext(input_name)
-        output_name = root + "_registered" + ext
+        output_name = f"{root}_registered{ext}"
         output_path = os.path.join(self.config["OUTPUT_DIR"], output_name)
 
         # construct pdal pipeline
@@ -169,7 +170,7 @@ class ApplyRegistration:
         if self.aoi_nodata is not None:
             range_filter_task = {
                 "type": "filters.range",
-                "limits": "Z![{}:{}]".format(self.aoi_nodata, self.aoi_nodata),
+                "limits": f"Z![{self.aoi_nodata}:{self.aoi_nodata}]",
             }
             pipe.append(range_filter_task)
 
@@ -179,7 +180,7 @@ class ApplyRegistration:
             pipe.append(registration_task)
         else:
             raise ValueError(
-                f"get_registration_transoformation returned {type(registration_task)} "
+                f"get_registration_transformation returned {type(registration_task)} "
                 "not a dictionary of strings as needed for the pdal pipeline."
             )
 
@@ -189,6 +190,10 @@ class ApplyRegistration:
             "resolution": self.aoi_resolution,
             "output_type": "idw",
             "filename": output_path,
+            "metadata": (
+                f"CODEM_VERSION={__version__},"
+                f"TIFFTAG_IMAGEDESCRIPTION=RegisteredCompliment"
+            ),
         }
         # Add nodata argument only if nodata is actually present
         if self.aoi_nodata is not None:

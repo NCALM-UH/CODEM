@@ -25,6 +25,7 @@ from typing import Tuple
 import cv2
 import numpy as np
 from codem.preprocessing.preprocess import GeoData
+from codem.preprocessing.preprocess import RegistrationParameters
 from rasterio import Affine
 from skimage.measure import ransac
 
@@ -403,7 +404,7 @@ class DsmRegistration:
         ty = X[1, 3]
         tz = X[2, 3]
 
-        self.registration_parameters = {
+        self.registration_parameters: RegistrationParameters = {
             "matrix": X,
             "omega": omega,
             "phi": phi,
@@ -425,7 +426,6 @@ class DsmRegistration:
             f"Saving DSM feature registration parameters to: {output_file}"
         )
         with open(output_file, "w") as f:
-
             f.write("DSM FEATURE REGISTRATION")
             f.write("\n------------------------")
             f.write(f"\nTransformation matrix: \n {X}")
