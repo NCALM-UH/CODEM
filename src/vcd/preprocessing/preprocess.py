@@ -366,52 +366,55 @@ class VCD:
     def save(self, format: str = ".las") -> None:
         with contextlib.suppress(FileExistsError):
             os.mkdir(os.path.join(self.before.config["OUTPUT_DIR"], "points"))
-        new_ground = (
-            os.path.join(self.before.config["OUTPUT_DIR"], "points", "ng-clusters")
-            + format
+
+        # Determine Colormap
+        flex_max = min(
+            clusters.arrays[0]["dZ3d"].min()
+            for clusters in (self.ng_clusters, self.ground_clusters)
         )
-        ground = (
-            os.path.join(self.before.config["OUTPUT_DIR"], "points", "gnd-clusters")
-            + format
+
+        new_max = max(
+            clusters.arrays[0]["dZ3d"].max()
+            for clusters in (self.ng_clusters, self.ground_clusters)
         )
-        crs = self.after.crs
-        pipeline = pdal.Writer.las(
-            filename=new_ground,
-            extra_dims="all",
-            a_srs=crs.to_string() if crs is not None else crs,
-        ).pipeline(self.ng_clusters.arrays[0])
-        pipeline.execute()
 
-        array = self.ground_clusters.arrays[0]
-
-        # Color the point cloud with a new/fled gradient
-        flex_max = array["dZ3d"].min()
-        new_max = array["dZ3d"].max()
-
-        # TODO: use product.colorscale colormap instead of manually specified variant.
-
-        fled = np.flipud(plt.cm.Reds(np.linspace(0.0, 1.0, 256)))
-        new = plt.cm.Blues(np.linspace(0.0, 1.0, 256))
-
-        all_colors = np.vstack((fled, new))
-        terrain_map = colors.LinearSegmentedColormap.from_list(
-            "terrain_map", all_colors
-        )
         divnorm = colors.TwoSlopeNorm(vmin=flex_max, vcenter=0, vmax=new_max)
-        rgb = np.array(
-            [
-                colors.to_rgba_array(terrain_map(divnorm(array["dZ3d"])))
-                * np.iinfo(np.uint16).max
-            ],
-            dtype=np.uint16,
-        )[0, :, :-1]
-        array = rfn.append_fields(
-            array, ["Red", "Green", "Blue"], [rgb[:, 0], rgb[:, 1], rgb[:, 2]]
-        )
+        colormap = plt.colormaps[self.products[0].colorscale]
 
-        pipeline = pdal.Writer.las(
-            filename=ground,
-            a_srs=crs.to_string() if crs is not None else crs,
-            extra_dims="all",
-        ).pipeline(array)
-        pipeline.execute()
+        # write point cloud output
+        for output in ("ground", "new_ground"):
+
+            if output == "ground":
+                path = "gnd-clusters"
+                array = self.ground_clusters.arrays[0]
+            elif output == "new_ground":
+                path = "ng-clusters"
+                array = self.ng_clusters.arrays[0]
+            else:
+                raise RuntimeError("How did you even get here?")
+
+            filename = os.path.join(
+                self.before.config["OUTPUT_DIR"], "points", f"{path}{format}"
+            )
+
+            # convert colors from [0. 1] floats to [0, 65535] per LAS spec
+            rgb = np.array(
+                [
+                    colors.to_rgba_array(colormap(divnorm(array["dZ3d"])))
+                    * np.iinfo(np.uint16).max
+                ],
+                dtype=np.uint16,
+            )[0, :, :-1]
+
+            array = rfn.append_fields(
+                array, ["Red", "Green", "Blue"], [rgb[:, 0], rgb[:, 1], rgb[:, 2]]
+            )
+
+            crs = self.after.crs
+            pipeline = pdal.Writer.las(
+                filename=filename,
+                extra_dims="all",
+                a_srs=crs.to_string() if crs is not None else crs,
+            ).pipeline(array)
+
+            pipeline.execute()
