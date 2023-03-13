@@ -77,6 +77,7 @@ class VcdRunConfig:
     CLUSTER_TOLERANCE: float = 2.0
     CULL_CLUSTER_IDS: Tuple[int, ...] = (-1, 0, 1)
     OUTPUT_DIR: Optional[str] = None
+    COLORMAP: str = "RdBu"
 
     def __post_init__(self) -> None:
         # set output directory
@@ -171,7 +172,17 @@ def get_args() -> argparse.Namespace:
     ap.add_argument(
         "-v", "--verbose", action="count", default=0, help="turn on verbose logging"
     )
-
+    ap.add_argument(
+        "--colormap",
+        type=str,
+        default=VcdRunConfig.COLORMAP,
+        help=(
+            "Colormap to apply to generated output files where supported.  Name has "
+            "to align with a matplotlib named colormap.  See "
+            "https://matplotlib.org/stable/tutorials/colors/colormaps.html#diverging "
+            "for list of options."
+        ),
+    )
     args = ap.parse_args()
     return args
 

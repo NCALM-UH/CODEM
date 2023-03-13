@@ -37,6 +37,7 @@ class VCDParameters(TypedDict):
     MIN_POINTS: int
     CLUSTER_TOLERANCE: float
     CULL_CLUSTER_IDS: Tuple[int, ...]
+    COLORMAP: str
     log: Log
 
 
@@ -44,7 +45,6 @@ class Product(NamedTuple):
     df: pd.DataFrame
     z_name: str
     description: str = ""
-    colorscale: str = "RdBu"
 
     @property
     def slug(self) -> str:
@@ -211,7 +211,6 @@ class VCD:
             ng_cluster_df.Y,
             ng_cluster_df.ClusterID,
             description=f"Non-ground clusters greater than {gh:.2f} height",
-            colorscale="IceFire",
         )
         self.products.append(p)
 
@@ -228,7 +227,6 @@ class VCD:
             ground_cluster_df.Y,
             ground_cluster_df.ClusterID,
             description=f"Ground clusters greater than {gh:.2f} height",
-            colorscale="IceFire",
         )
         self.products.append(p)
 
@@ -280,12 +278,9 @@ class VCD:
         y: pd.Series,
         z: pd.Series,
         description: str = "",
-        colorscale: str = "RdBu",
     ) -> pd.DataFrame:
         df = x.to_frame().join(y.to_frame()).join(z.to_frame())
-        return Product(
-            df=df, z_name=z.name, description=description, colorscale=colorscale
-        )
+        return Product(df=df, z_name=z.name, description=description)
 
     def rasterize(self) -> None:
         resolution = self.before.config["RESOLUTION"]
@@ -323,10 +318,6 @@ class VCD:
                 resolution=resolution,
             ).pipeline(array)
             pipeline.execute()
-
-            # TODO:
-            # look at adding the colortable
-            # https://gis.stackexchange.com/questions/325615/store-geotiff-with-color-table-python/325751#325751
             return outfile
 
         def _merge(rasters: List[str], output_type: str) -> None:
@@ -379,7 +370,8 @@ class VCD:
         )
 
         divnorm = colors.TwoSlopeNorm(vmin=flex_max, vcenter=0, vmax=new_max)
-        colormap = plt.colormaps[self.products[0].colorscale]
+        # we are only writing the first point-clouds
+        colormap = plt.colormaps[self.before.config["COLORMAP"]]
 
         # write point cloud output
         for output in ("ground", "new_ground"):
@@ -416,5 +408,4 @@ class VCD:
                 extra_dims="all",
                 a_srs=crs.to_string() if crs is not None else crs,
             ).pipeline(array)
-
             pipeline.execute()
