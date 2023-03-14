@@ -18,7 +18,6 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import pandas as pd
 import pdal
-import rasterio
 from codem import __version__
 from codem.lib.log import Log
 from pyproj import CRS
@@ -227,9 +226,6 @@ class VCD:
 
     def make_products(self) -> None:
         after = self.after.df
-        gh = self.gh
-        resolution = self.resolution
-
         p = self.make_product(
             after.X, after.Y, after.dZ3d, description="Before minus after"
         )
