@@ -235,37 +235,37 @@ class VCD:
         )
         self.products.append(p)
 
-        p = self.make_product(
-            after[after.d3 < gh].X,
-            after[after.d3 < gh].Y,
-            after[after.d3 < gh].dZ3d,
-            f"Points within {resolution:.2f}m difference",
-        )
-        self.products.append(p)
+        # p = self.make_product(
+        #     after[after.d3 < gh].X,
+        #     after[after.d3 < gh].Y,
+        #     after[after.d3 < gh].dZ3d,
+        #     f"Points within {resolution:.2f}m difference",
+        # )
+        # self.products.append(p)
 
-        p = self.make_product(
-            after[after.d3 > gh].X,
-            after[after.d3 > gh].Y,
-            after[after.d3 > gh].dZ3d,
-            f"Points more than {resolution:.2f}m difference",
-        )
-        self.products.append(p)
+        # p = self.make_product(
+        #     after[after.d3 > gh].X,
+        #     after[after.d3 > gh].Y,
+        #     after[after.d3 > gh].dZ3d,
+        #     f"Points more than {resolution:.2f}m difference",
+        # )
+        # self.products.append(p)
 
-        p = self.make_product(
-            after[(after.Classification == 2) & (after.d3 > gh)].X,
-            after[(after.Classification == 2) & (after.d3 > gh)].Y,
-            after[(after.Classification == 2) & (after.d3 > gh)].dZ3d,
-            f"Ground points more than {resolution:.2f}m difference",
-        )
-        self.products.append(p)
+        # p = self.make_product(
+        #     after[(after.Classification == 2) & (after.d3 > gh)].X,
+        #     after[(after.Classification == 2) & (after.d3 > gh)].Y,
+        #     after[(after.Classification == 2) & (after.d3 > gh)].dZ3d,
+        #     f"Ground points more than {resolution:.2f}m difference",
+        # )
+        # self.products.append(p)
 
-        p = self.make_product(
-            after[(after.Classification != 2) & (after.d3 > gh)].X,
-            after[(after.Classification != 2) & (after.d3 > gh)].Y,
-            after[(after.Classification != 2) & (after.d3 > gh)].dZ3d,
-            f"Non-ground points more than {resolution:.2f}m difference",
-        )
-        self.products.append(p)
+        # p = self.make_product(
+        #     after[(after.Classification != 2) & (after.d3 > gh)].X,
+        #     after[(after.Classification != 2) & (after.d3 > gh)].Y,
+        #     after[(after.Classification != 2) & (after.d3 > gh)].dZ3d,
+        #     f"Non-ground points more than {resolution:.2f}m difference",
+        # )
+        # self.products.append(p)
 
     def make_product(
         self,
@@ -335,7 +335,6 @@ class VCD:
 
             band_id = descriptions.index(output_type) + 1  # bands count from 1
             outfile = os.path.join(summary_dir, output_type) + ".tif"
-
             with rasterio.open(outfile, "w", **meta) as dst:
                 for index, layer in enumerate(rasters, start=1):
                     with rasterio.open(layer) as src:
