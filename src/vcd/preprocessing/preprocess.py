@@ -89,6 +89,9 @@ class PointCloud:
             raise NotImplementedError("VCD between multiple views is not supported")
         self.df = pd.DataFrame(self.pipeline.arrays[0])
 
+        # drop the color information if it is present
+        self.df = self.df.drop(columns=["Red", "Green", "Blue"], errors="ignore")
+
     def open(self) -> pdal.Pipeline:
         def _get_utm(pipeline: pdal.Pipeline) -> pdal.Pipeline:
             data = pipeline.quickinfo
@@ -160,8 +163,8 @@ class PointCloud:
         filters |= pdal.Filter.range(limits="Classification![7:7]")
         filters |= pdal.Filter.assign(assignment="Classification[:]=1")
         filters |= pdal.Filter.smrf()
-        self.pipeline = filters
         filters.execute()
+        self.pipeline = filters
         return filters
 
 
