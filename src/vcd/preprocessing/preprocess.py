@@ -89,6 +89,9 @@ class PointCloud:
             raise NotImplementedError("VCD between multiple views is not supported")
         self.df = pd.DataFrame(self.pipeline.arrays[0])
 
+        # drop the color information if it is present
+        self.df = self.df.drop(columns=["Red", "Green", "Blue"], errors="ignore")
+
     def open(self) -> pdal.Pipeline:
         def _get_utm(pipeline: pdal.Pipeline) -> pdal.Pipeline:
             data = pipeline.quickinfo
@@ -160,8 +163,8 @@ class PointCloud:
         filters |= pdal.Filter.range(limits="Classification![7:7]")
         filters |= pdal.Filter.assign(assignment="Classification[:]=1")
         filters |= pdal.Filter.smrf()
-        self.pipeline = filters
         filters.execute()
+        self.pipeline = filters
         return filters
 
 
@@ -375,7 +378,6 @@ class VCD:
 
         # write point cloud output
         for output in ("ground", "new_ground"):
-
             if output == "ground":
                 path = "gnd-clusters"
                 array = self.ground_clusters.arrays[0]
@@ -397,7 +399,6 @@ class VCD:
                 ],
                 dtype=np.uint16,
             )[0, :, :-1]
-
             array = rfn.append_fields(
                 array, ["Red", "Green", "Blue"], [rgb[:, 0], rgb[:, 1], rgb[:, 2]]
             )
