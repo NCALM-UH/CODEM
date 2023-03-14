@@ -251,22 +251,6 @@ class VCD:
         # )
         # self.products.append(p)
 
-        # p = self.make_product(
-        #     after[(after.Classification == 2) & (after.d3 > gh)].X,
-        #     after[(after.Classification == 2) & (after.d3 > gh)].Y,
-        #     after[(after.Classification == 2) & (after.d3 > gh)].dZ3d,
-        #     f"Ground points more than {resolution:.2f}m difference",
-        # )
-        # self.products.append(p)
-
-        # p = self.make_product(
-        #     after[(after.Classification != 2) & (after.d3 > gh)].X,
-        #     after[(after.Classification != 2) & (after.d3 > gh)].Y,
-        #     after[(after.Classification != 2) & (after.d3 > gh)].dZ3d,
-        #     f"Non-ground points more than {resolution:.2f}m difference",
-        # )
-        # self.products.append(p)
-
     def make_product(
         self,
         x: pd.Series,
@@ -291,7 +275,7 @@ class VCD:
         os.makedirs(summary_dir, exist_ok=True)
         os.makedirs(products_dir, exist_ok=True)
 
-        def _rasterize(product: pd.DataFrame, utm: str) -> str:
+        def _rasterize(product: Product, utm: str) -> str:
             array = product.df.to_records()
             array = rfn.rename_fields(array, {product.z_name: "Z"})
 
@@ -320,34 +304,32 @@ class VCD:
             pipeline.execute()
             return outfile
 
-        def _merge(rasters: List[str], output_type: str) -> None:
-            with rasterio.open(rasters[0]) as src0:
-                meta = src0.meta
-                descriptions = src0.descriptions
+        # def _merge(rasters: List[str], output_type: str) -> None:
+        #     with rasterio.open(rasters[0]) as src0:
+        #         meta = src0.meta
+        #         descriptions = src0.descriptions
 
-            meta.update(count=len(rasters))
-            meta.update(
-                compress="LERC_ZSTD",
-                max_z_error=0.01,
-                bigtiff="YES",
-                overview_compress="LERC_ZSTD",
-            )
+        #     meta.update(count=len(rasters))
+        #     meta.update(
+        #         compress="LERC_ZSTD",
+        #         max_z_error=0.01,
+        #         bigtiff="YES",
+        #         overview_compress="LERC_ZSTD",
+        #     )
 
-            band_id = descriptions.index(output_type) + 1  # bands count from 1
-            outfile = os.path.join(summary_dir, output_type) + ".tif"
-            with rasterio.open(outfile, "w", **meta) as dst:
-                for index, layer in enumerate(rasters, start=1):
-                    with rasterio.open(layer) as src:
-                        band_description = src.tags()["TIFFTAG_IMAGEDESCRIPTION"]
-                        band = src.read(band_id)
+        #     band_id = descriptions.index(output_type) + 1  # bands count from 1
+        #     outfile = os.path.join(summary_dir, output_type) + ".tif"
+        #     with rasterio.open(outfile, "w", **meta) as dst:
+        #         for index, layer in enumerate(rasters, start=1):
+        #             with rasterio.open(layer) as src:
+        #                 band_description = src.tags()["TIFFTAG_IMAGEDESCRIPTION"]
+        #                 band = src.read(band_id)
 
-                        dst.write_band(index, band)
-                        dst.update_tags(band_id)
-                        dst.set_band_description(index, band_description)
+        #                 dst.write_band(index, band)
+        #                 dst.update_tags(band_id)
+        #                 dst.set_band_description(index, band_description)
 
-        rasters = [_rasterize(p, self.before.utm) for p in self.products]
-        for feature in ("idw", "min", "max", "mean", "count"):
-            _merge(rasters, feature)
+        _ = [_rasterize(p, self.before.utm) for p in self.products]
         return None
 
     def save(self, format: str = ".las") -> None:
