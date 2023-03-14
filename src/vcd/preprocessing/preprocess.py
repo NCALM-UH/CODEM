@@ -89,9 +89,6 @@ class PointCloud:
             raise NotImplementedError("VCD between multiple views is not supported")
         self.df = pd.DataFrame(self.pipeline.arrays[0])
 
-        # drop the color information if it is present
-        self.df = self.df.drop(columns=["Red", "Green", "Blue"], errors="ignore")
-
     def open(self) -> pdal.Pipeline:
         def _get_utm(pipeline: pdal.Pipeline) -> pdal.Pipeline:
             data = pipeline.quickinfo
@@ -163,8 +160,8 @@ class PointCloud:
         filters |= pdal.Filter.range(limits="Classification![7:7]")
         filters |= pdal.Filter.assign(assignment="Classification[:]=1")
         filters |= pdal.Filter.smrf()
-        filters.execute()
         self.pipeline = filters
+        filters.execute()
         return filters
 
 
@@ -235,21 +232,21 @@ class VCD:
         )
         self.products.append(p)
 
-        # p = self.make_product(
-        #     after[after.d3 < gh].X,
-        #     after[after.d3 < gh].Y,
-        #     after[after.d3 < gh].dZ3d,
-        #     f"Points within {resolution:.2f}m difference",
-        # )
-        # self.products.append(p)
+        p = self.make_product(
+            after[after.d3 < gh].X,
+            after[after.d3 < gh].Y,
+            after[after.d3 < gh].dZ3d,
+            f"Points within {resolution:.2f}m difference",
+        )
+        self.products.append(p)
 
-        # p = self.make_product(
-        #     after[after.d3 > gh].X,
-        #     after[after.d3 > gh].Y,
-        #     after[after.d3 > gh].dZ3d,
-        #     f"Points more than {resolution:.2f}m difference",
-        # )
-        # self.products.append(p)
+        p = self.make_product(
+            after[after.d3 > gh].X,
+            after[after.d3 > gh].Y,
+            after[after.d3 > gh].dZ3d,
+            f"Points more than {resolution:.2f}m difference",
+        )
+        self.products.append(p)
 
     def make_product(
         self,
@@ -288,10 +285,7 @@ class VCD:
                 f"CODEM_VERSION={__version__}"
             )
             gdalopts = (
-                "MAX_Z_ERROR=0.01,"
-                "COMPRESS=LERC_ZSTD,"
-                "OVERVIEW_COMPRESS=LERC_ZSTD,"
-                "BIGTIFF=YES"
+                "COMPRESS=LZW," "PREDICTOR=2," "OVERVIEW_COMPRESS=LZW," "BIGTIFF=YES"
             )
 
             pipeline = pdal.Writer.gdal(
@@ -300,34 +294,10 @@ class VCD:
                 gdalopts=gdalopts,
                 override_srs=utm,
                 resolution=resolution,
+                output_type="idw",
             ).pipeline(array)
             pipeline.execute()
             return outfile
-
-        # def _merge(rasters: List[str], output_type: str) -> None:
-        #     with rasterio.open(rasters[0]) as src0:
-        #         meta = src0.meta
-        #         descriptions = src0.descriptions
-
-        #     meta.update(count=len(rasters))
-        #     meta.update(
-        #         compress="LERC_ZSTD",
-        #         max_z_error=0.01,
-        #         bigtiff="YES",
-        #         overview_compress="LERC_ZSTD",
-        #     )
-
-        #     band_id = descriptions.index(output_type) + 1  # bands count from 1
-        #     outfile = os.path.join(summary_dir, output_type) + ".tif"
-        #     with rasterio.open(outfile, "w", **meta) as dst:
-        #         for index, layer in enumerate(rasters, start=1):
-        #             with rasterio.open(layer) as src:
-        #                 band_description = src.tags()["TIFFTAG_IMAGEDESCRIPTION"]
-        #                 band = src.read(band_id)
-
-        #                 dst.write_band(index, band)
-        #                 dst.update_tags(band_id)
-        #                 dst.set_band_description(index, band_description)
 
         _ = [_rasterize(p, self.before.utm) for p in self.products]
         return None
@@ -374,6 +344,7 @@ class VCD:
                 ],
                 dtype=np.uint16,
             )[0, :, :-1]
+
             array = rfn.append_fields(
                 array, ["Red", "Green", "Blue"], [rgb[:, 0], rgb[:, 1], rgb[:, 2]]
             )
