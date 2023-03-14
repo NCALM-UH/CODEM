@@ -235,22 +235,6 @@ class VCD:
         )
         self.products.append(p)
 
-        p = self.make_product(
-            after[after.d3 < gh].X,
-            after[after.d3 < gh].Y,
-            after[after.d3 < gh].dZ3d,
-            f"Points within {resolution:.2f}m difference",
-        )
-        self.products.append(p)
-
-        p = self.make_product(
-            after[after.d3 > gh].X,
-            after[after.d3 > gh].Y,
-            after[after.d3 > gh].dZ3d,
-            f"Points more than {resolution:.2f}m difference",
-        )
-        self.products.append(p)
-
     def make_product(
         self,
         x: pd.Series,
