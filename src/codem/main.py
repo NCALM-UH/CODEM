@@ -25,6 +25,7 @@ from typing import Union
 
 import yaml
 from codem.lib.log import Log
+from codem.preprocessing.preprocess import clip_data
 from codem.preprocessing.preprocess import GeoData
 from codem.preprocessing.preprocess import instantiate
 from codem.registration import ApplyRegistration
@@ -97,6 +98,7 @@ class CodemRunConfig:
     VERBOSE: bool = False
     ICP_SAVE_RESIDUALS: bool = False
     OUTPUT_DIR: Optional[str] = None
+    TIGHT_SEARCH: bool = False
 
     def __post_init__(self) -> None:
         # set output directory
@@ -287,6 +289,16 @@ def get_args() -> argparse.Namespace:
     ap.add_argument(
         "--verbose", "-v", type=str2bool, default=False, help="turn on verbose logging"
     )
+    ap.add_argument(
+        "--tight-search",
+        "-ts",
+        type=str2bool,
+        default=False,
+        help=(
+            "Limits the registration search to the region of overlap. Both datasets "
+            "must have the same CRS defined."
+        ),
+    )
     return ap.parse_args()
 
 
@@ -310,6 +322,7 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         ICP_SOLVE_SCALE=args.icp_solve_scale,
         VERBOSE=args.verbose,
         ICP_SAVE_RESIDUALS=False,
+        TIGHT_SEARCH=args.tight_search,
     )
     return dataclasses.asdict(config)
 
@@ -351,6 +364,7 @@ def run_console(
         console.print("══════════PREPROCESSING DATA══════════", justify="center")
         # status.update(stage="Preprocessing Inputs", force=True)
         fnd_obj, aoi_obj = preprocess(config)
+        clip_data(fnd_obj, aoi_obj, config)
         progress.advance(registration, 7)
         fnd_obj.prep()
         progress.advance(registration, 45)
@@ -392,6 +406,8 @@ def preprocess(config: Dict[str, Any]) -> Tuple[GeoData, GeoData]:
     else:
         resolution = max(fnd_obj.native_resolution, aoi_obj.native_resolution)
     fnd_obj.resolution = aoi_obj.resolution = resolution
+    fnd_obj._create_dsm()
+    aoi_obj._create_dsm()
     return fnd_obj, aoi_obj
 
 
