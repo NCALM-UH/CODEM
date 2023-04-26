@@ -110,7 +110,7 @@ class DsmRegistration:
         if len(self.fnd_kp) < 4:
             raise RuntimeError(
                 (
-                    f"{len(self.fnd_kp)} keypoints were identiifed in the Foundation data"
+                    f"{len(self.fnd_kp)} keypoints were identified in the Foundation data"
                     " (4 required).  Consider modifying the DSM_AKAZE_THRESHOLD parameter,"
                     f" current value is {self.config['DSM_AKAZE_THRESHOLD']}"
                 )
@@ -123,7 +123,7 @@ class DsmRegistration:
         if len(self.aoi_kp) < 4:
             raise RuntimeError(
                 (
-                    f"{len(self.aoi_kp)} keypoints were identiifed in the "
+                    f"{len(self.aoi_kp)} keypoints were identified in the "
                     "AOI data (4 required).  Consider modifying the DSM_AKAZE_THRESHOLD"
                     f"parameter, current value is {self.config['DSM_AKAZE_THRESHOLD']}"
                 )
@@ -354,7 +354,7 @@ class DsmRegistration:
         """
         z = []
         for cr in uv:
-            cr_int = np.int32(np.rint(cr))
+            cr_int = np.rint(cr).astype(np.int32)
             z.append(dsm[cr_int[1], cr_int[0]])
 
         # When using the transform to convert from pixels to object space

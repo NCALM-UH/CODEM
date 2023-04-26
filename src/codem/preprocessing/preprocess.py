@@ -26,16 +26,25 @@ This module contains the following classes and methods:
 """
 import json
 import logging
+import math
 import os
 import tempfile
+from typing import Any
+from typing import Dict
 from typing import Optional
+from typing import Tuple
 
 import codem.lib.resources as r
 import cv2
 import numpy as np
 import pdal
+import pyproj
 import rasterio.fill
+import rasterio.transform
 import trimesh
+from rasterio import windows
+from rasterio.coords import BoundingBox
+from rasterio.coords import disjoint_bounds
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from typing_extensions import TypedDict
@@ -102,6 +111,9 @@ class GeoData:
         self.units: Optional[str] = None
         self.weak_size = config["DSM_WEAK_FILTER"]
         self.strong_size = config["DSM_STRONG_FILTER"]
+        self.config = config
+        self.bound_slices: Optional[Tuple[slice, slice]] = None
+        self.window: Optional[windows.Window] = None
 
     @property
     def type(self) -> str:
@@ -122,7 +134,7 @@ class GeoData:
         self._resolution = value
         return None
 
-    def _read_dsm(self, file_path: str) -> None:
+    def _read_dsm(self, file_path: str, force: bool = False) -> None:
         """
         Reads in DSM data from a given file path.
 
@@ -133,13 +145,15 @@ class GeoData:
         """
         tag = ["AOI", "Foundation"][int(self.fnd)]
 
-        if self.dsm.size == 0:
+        if self.dsm.size == 0 or force:
             with rasterio.open(file_path) as data:
-                self.dsm = data.read(1)
-                self.transform = data.transform
+                self.dsm = data.read(1, window=self.window)
+                if self.window is None:
+                    self.transform = data.transform
+                else:
+                    self.transform = data.window_transform(self.window)
                 self.nodata = data.nodata
                 self.crs = data.crs
-
                 tags = data.tags()
             if "AREA_OR_POINT" in tags and tags["AREA_OR_POINT"] == "Area":
                 self.area_or_point = "Area"
@@ -307,7 +321,6 @@ class GeoData:
         """
         tag = ["AOI", "Foundation"][int(self.fnd)]
         self.logger.info(f"Preparing {tag}-{self.type.upper()} for registration.")
-        self._create_dsm()
         self._infill()
         self._normalize()
         self._dsm2pc()
@@ -361,21 +374,31 @@ class DSM(GeoData):
                     ),
                     resampling=Resampling.cubic,
                     out_dtype=np.float32,
+                    window=self.window,
                 )
                 # We post-multiply the transform by the resampling scale. This does
                 # not change the origin coordinates, only the pixel scale.
-                self.transform = data.transform * data.transform.scale(
-                    (data.width / self.dsm.shape[-1]),
-                    (data.height / self.dsm.shape[-2]),
-                )
+                if self.window is None:
+                    self.transform = data.transform * data.transform.scale(
+                        (data.width / self.dsm.shape[-1]),
+                        (data.height / self.dsm.shape[-2]),
+                    )
+                else:
+                    transform = data.window_transform(self.window)
+                    self.transform = transform * transform.scale(
+                        (data.width / self.dsm.shape[1]),
+                        (data.height / self.dsm.shape[0]),
+                    )
             else:
                 self.logger.info(
                     f"No resampling required for {tag}-{self.type.upper()}"
                 )
                 # data is read as float32 as int dtypes result in poor keypoint identification
-                self.dsm = data.read(1, out_dtype=np.float32)
-                self.transform = data.transform
-
+                self.dsm = data.read(1, out_dtype=np.float32, window=self.window)
+                if self.window is None:
+                    self.transform = data.transform
+                else:
+                    self.transform = data.window_transform(self.window)
             self.nodata = data.nodata
             self.crs = data.crs
 
@@ -511,7 +534,7 @@ class PointCloud(GeoData):
         p = pdal.Pipeline(json.dumps(pipe))
         p.execute()
 
-        self._read_dsm(tmp_file)
+        self._read_dsm(tmp_file, force=True)
         os.close(file_handle)
         os.remove(tmp_file)
 
@@ -677,3 +700,101 @@ def instantiate(config: dict, fnd: bool) -> GeoData:
         return PointCloud(config, fnd)
     logger.warning(f"File {file_path} has an unsupported type.")
     raise NotImplementedError("File type not currently supported.")
+
+
+def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]) -> None:
+    # how much outside of the bounds to search for registration features
+    oversize_scale = 1.5
+
+    # need information on CRS
+    fnd_obj._create_dsm()
+    aoi_obj._create_dsm()
+
+    if not config["TIGHT_SEARCH"]:
+        return None
+
+    # is foundation CRS defined:
+    if any(crs is None for crs in (fnd_obj.crs, aoi_obj.crs)):
+        raise AttributeError(
+            "To perform this operation, the CRS of both datasets must be defined and equal"
+        )
+
+    foundation_crs = pyproj.CRS(fnd_obj.crs)
+    compliment_crs = pyproj.CRS(aoi_obj.crs)
+
+    if not foundation_crs.equals(compliment_crs):
+        raise ValueError(
+            "To perform this operation, the CRS of both datasets must be equal"
+        )
+
+    # create our original and scaled bounding boxes
+    original_bounding_boxes: Dict[str, BoundingBox] = {}
+    scaled_bounding_boxes: Dict[str, BoundingBox] = {}
+    for dataset in [fnd_obj, aoi_obj]:
+        for scaling in (1.0, oversize_scale):
+            if math.isclose(scaling, 1.0):
+                bounding_boxes = original_bounding_boxes
+            else:
+                bounding_boxes = scaled_bounding_boxes
+
+            key = "foundation" if dataset.fnd else "compliment"
+            if dataset.transform is None:
+                raise RuntimeError("Transform needs to be specified for the datasets")
+            transform = dataset.transform * dataset.transform.scale(scaling)
+            left, top = transform * (0, 0)
+            right, bottom = transform * dataset.dsm.shape
+            bounding_boxes[key] = BoundingBox(left, bottom, right, top)
+
+    if disjoint_bounds(bounding_boxes["foundation"], bounding_boxes["compliment"]):
+        raise ValueError("Bounding boxes for foundation and compliment are disjoint")
+
+    # get new bounding boxes
+    clipped_bounding_boxes = compute_clipped_bounds(
+        original_bounding_boxes, scaled_bounding_boxes
+    )
+
+    for key in ("foundation", "compliment"):
+        dataset_obj = fnd_obj if key == "foundation" else aoi_obj
+        transform = rasterio.transform.AffineTransformer(dataset_obj.transform)
+        xs, ys = transform.rowcol(
+            [clipped_bounding_boxes[key].left, clipped_bounding_boxes[key].right],
+            [clipped_bounding_boxes[key].top, clipped_bounding_boxes[key].bottom],
+        )
+        dataset_obj.window = windows.Window.from_slices(slice(*xs), slice(*ys))
+        dataset_obj._create_dsm()  # need to recreate the DSM with the window
+    return None
+
+
+def compute_clipped_bounds(
+    original: Dict[str, BoundingBox], scaled: Dict[str, BoundingBox]
+) -> Dict[str, BoundingBox]:
+    foundation_original = original["foundation"]
+    foundation_scaled = scaled["foundation"]
+    compliment_original = original["compliment"]
+    compliment_scaled = scaled["compliment"]
+
+    trimmed_foundation: Dict[str, float] = {}
+    trimmed_compliment: Dict[str, float] = {}
+    sides = foundation_original._fields
+    for fixed in ("foundation", "compliment"):
+        if fixed == "foundation":
+            new_bounds = trimmed_foundation
+            scaled = foundation_scaled
+            edge = compliment_original
+        else:
+            new_bounds = trimmed_compliment
+            scaled = compliment_scaled
+            edge = foundation_original
+        for side in sides:
+            closer = max if side in ("left", "bottom") else min
+            new_bounds[side] = closer(getattr(edge, side), getattr(scaled, side))
+
+    clipped_bounds: Dict[str, BoundingBox] = {
+        "foundation": BoundingBox(
+            *[trimmed_foundation[side] for side in ("left", "bottom", "right", "top")]
+        )
+    }
+    clipped_bounds["compliment"] = BoundingBox(
+        *[trimmed_compliment[side] for side in ("left", "bottom", "right", "top")]
+    )
+    return clipped_bounds
