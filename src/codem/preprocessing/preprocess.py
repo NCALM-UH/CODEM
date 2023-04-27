@@ -727,7 +727,7 @@ def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]) -> Non
             "To perform this operation, the CRS of both datasets must be equal"
         )
 
-    # create our original and scaled bounding boxes
+    # create our original and scaled bounding boxes (only handles right/bottom)
     original_bounding_boxes: Dict[str, BoundingBox] = {}
     scaled_bounding_boxes: Dict[str, BoundingBox] = {}
     for dataset in [fnd_obj, aoi_obj]:
@@ -736,14 +736,32 @@ def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]) -> Non
                 bounding_boxes = original_bounding_boxes
             else:
                 bounding_boxes = scaled_bounding_boxes
-
             key = "foundation" if dataset.fnd else "compliment"
             if dataset.transform is None:
                 raise RuntimeError("Transform needs to be specified for the datasets")
+
             transform = dataset.transform * dataset.transform.scale(scaling)
             left, top = transform * (0, 0)
             right, bottom = transform * dataset.dsm.shape
             bounding_boxes[key] = BoundingBox(left, bottom, right, top)
+
+    # need to adjust scale on left and top due to transform scaling math
+    for dataset in [fnd_obj, aoi_obj]:
+        key = "foundation" if dataset.fnd else "compliment"
+        x_expanded = abs(
+            scaled_bounding_boxes[key].right - original_bounding_boxes[key].right
+        )
+        y_expanded = abs(
+            scaled_bounding_boxes[key].bottom - original_bounding_boxes[key].bottom
+        )
+        left_new = scaled_bounding_boxes[key].left - x_expanded
+        top_new = scaled_bounding_boxes[key].top + y_expanded
+
+        right_new = scaled_bounding_boxes[key].right
+        bottom_new = scaled_bounding_boxes[key].bottom
+        scaled_bounding_boxes[key] = BoundingBox(
+            left_new, bottom_new, right_new, top_new
+        )
 
     if disjoint_bounds(bounding_boxes["foundation"], bounding_boxes["compliment"]):
         raise ValueError("Bounding boxes for foundation and compliment are disjoint")
@@ -779,16 +797,16 @@ def compute_clipped_bounds(
     for fixed in ("foundation", "compliment"):
         if fixed == "foundation":
             new_bounds = trimmed_foundation
-            scaled = foundation_scaled
-            edge = compliment_original
-        else:
-            new_bounds = trimmed_compliment
             scaled = compliment_scaled
             edge = foundation_original
+        else:
+            new_bounds = trimmed_compliment
+            scaled = foundation_scaled
+            edge = compliment_original
+
         for side in sides:
             closer = max if side in ("left", "bottom") else min
             new_bounds[side] = closer(getattr(edge, side), getattr(scaled, side))
-
     clipped_bounds: Dict[str, BoundingBox] = {
         "foundation": BoundingBox(
             *[trimmed_foundation[side] for side in ("left", "bottom", "right", "top")]
