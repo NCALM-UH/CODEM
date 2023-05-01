@@ -406,8 +406,11 @@ def preprocess(config: Dict[str, Any]) -> Tuple[GeoData, GeoData]:
     else:
         resolution = max(fnd_obj.native_resolution, aoi_obj.native_resolution)
     fnd_obj.resolution = aoi_obj.resolution = resolution
-    fnd_obj._create_dsm()
-    aoi_obj._create_dsm()
+
+    # create DSM, but if doing tight-search do not resample
+    resample = not config["TIGHT_SEARCH"]
+    fnd_obj._create_dsm(resample=resample)
+    aoi_obj._create_dsm(resample=resample)
     return fnd_obj, aoi_obj
 
 
