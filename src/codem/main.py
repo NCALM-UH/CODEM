@@ -287,13 +287,12 @@ def get_args() -> argparse.Namespace:
         help="boolean to include or exclude scale from the solved registration",
     )
     ap.add_argument(
-        "--verbose", "-v", type=str2bool, default=False, help="turn on verbose logging"
+        "--verbose", "-v", action="store_true", help="turn on verbose logging"
     )
     ap.add_argument(
         "--tight-search",
         "-ts",
-        type=str2bool,
-        default=False,
+        action="store_true",
         help=(
             "Limits the registration search to the region of overlap. Both datasets "
             "must have the same CRS defined."
