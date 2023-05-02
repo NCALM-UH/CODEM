@@ -312,7 +312,7 @@ class GeoData:
     def _calculate_resolution(self) -> None:
         raise NotImplementedError
 
-    def _create_dsm(self) -> None:
+    def _create_dsm(self, resample: bool = True) -> None:
         raise NotImplementedError
 
     def prep(self) -> None:
@@ -334,7 +334,10 @@ class GeoData:
         """Use this to show the raster"""
         import matplotlib.pyplot as plt
 
-        plt.imshow(self.infilled, cmap="gray")
+        if hasattr(self, "infilled"):
+            plt.imshow(self.infilled, cmap="gray")
+        else:
+            plt.imshow(self.dsm, cmap="gray")
         if keypoints is not None:
             plt.scatter(
                 keypoints[:, 0], keypoints[:, 1], marker="s", color="orange", s=10.0
@@ -352,13 +355,16 @@ class DSM(GeoData):
         self.type = "dsm"
         self._calculate_resolution()
 
-    def _create_dsm(self) -> None:
+    def _create_dsm(self, resample: bool = True) -> None:
         """
         Resamples the DSM to the registration pipeline resolution and applies
         a scale factor to convert to meters.
         """
+
         with rasterio.open(self.file) as data:
-            resample_factor = self.native_resolution / self.resolution
+            resample_factor = (
+                self.native_resolution / self.resolution if resample else 1.0
+            )
             tag = ["AOI", "Foundation"][int(self.fnd)]
             if resample_factor != 1:
                 self.logger.info(
@@ -500,7 +506,7 @@ class PointCloud(GeoData):
         self.type = "pcloud"
         self._calculate_resolution()
 
-    def _create_dsm(self) -> None:
+    def _create_dsm(self, resample: bool = True) -> None:
         """
         Converts the point cloud to meters and rasters it to a DSM.
         """
@@ -586,7 +592,7 @@ class Mesh(GeoData):
         self.type = "mesh"
         self._calculate_resolution()
 
-    def _create_dsm(self) -> None:
+    def _create_dsm(self, resample: bool = True) -> None:
         """
         Converts mesh vertices to meters and rasters them to a DSM.
         """
@@ -706,10 +712,6 @@ def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]) -> Non
     # how much outside of the bounds to search for registration features
     oversize_scale = 1.5
 
-    # need information on CRS
-    fnd_obj._create_dsm()
-    aoi_obj._create_dsm()
-
     if not config["TIGHT_SEARCH"]:
         return None
 
@@ -727,7 +729,7 @@ def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]) -> Non
             "To perform this operation, the CRS of both datasets must be equal"
         )
 
-    # create our original and scaled bounding boxes
+    # create our original and scaled bounding boxes (only handles right/bottom)
     original_bounding_boxes: Dict[str, BoundingBox] = {}
     scaled_bounding_boxes: Dict[str, BoundingBox] = {}
     for dataset in [fnd_obj, aoi_obj]:
@@ -736,14 +738,32 @@ def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]) -> Non
                 bounding_boxes = original_bounding_boxes
             else:
                 bounding_boxes = scaled_bounding_boxes
-
             key = "foundation" if dataset.fnd else "compliment"
             if dataset.transform is None:
                 raise RuntimeError("Transform needs to be specified for the datasets")
+
             transform = dataset.transform * dataset.transform.scale(scaling)
             left, top = transform * (0, 0)
             right, bottom = transform * dataset.dsm.shape
             bounding_boxes[key] = BoundingBox(left, bottom, right, top)
+
+    # need to adjust scale on left and top due to transform scaling math
+    for dataset in [fnd_obj, aoi_obj]:
+        key = "foundation" if dataset.fnd else "compliment"
+        x_expanded = abs(
+            scaled_bounding_boxes[key].right - original_bounding_boxes[key].right
+        )
+        y_expanded = abs(
+            scaled_bounding_boxes[key].bottom - original_bounding_boxes[key].bottom
+        )
+        left_new = scaled_bounding_boxes[key].left - x_expanded
+        top_new = scaled_bounding_boxes[key].top + y_expanded
+
+        right_new = scaled_bounding_boxes[key].right
+        bottom_new = scaled_bounding_boxes[key].bottom
+        scaled_bounding_boxes[key] = BoundingBox(
+            left_new, bottom_new, right_new, top_new
+        )
 
     if disjoint_bounds(bounding_boxes["foundation"], bounding_boxes["compliment"]):
         raise ValueError("Bounding boxes for foundation and compliment are disjoint")
@@ -761,7 +781,9 @@ def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]) -> Non
             [clipped_bounding_boxes[key].top, clipped_bounding_boxes[key].bottom],
         )
         dataset_obj.window = windows.Window.from_slices(slice(*xs), slice(*ys))
-        dataset_obj._create_dsm()  # need to recreate the DSM with the window
+        # breakpoint()
+        # need that we know the window, create the DSM with resampling
+        dataset_obj._create_dsm(resample=True)
     return None
 
 
@@ -779,16 +801,16 @@ def compute_clipped_bounds(
     for fixed in ("foundation", "compliment"):
         if fixed == "foundation":
             new_bounds = trimmed_foundation
-            scaled = foundation_scaled
-            edge = compliment_original
-        else:
-            new_bounds = trimmed_compliment
             scaled = compliment_scaled
             edge = foundation_original
+        else:
+            new_bounds = trimmed_compliment
+            scaled = foundation_scaled
+            edge = compliment_original
+
         for side in sides:
             closer = max if side in ("left", "bottom") else min
             new_bounds[side] = closer(getattr(edge, side), getattr(scaled, side))
-
     clipped_bounds: Dict[str, BoundingBox] = {
         "foundation": BoundingBox(
             *[trimmed_foundation[side] for side in ("left", "bottom", "right", "top")]
