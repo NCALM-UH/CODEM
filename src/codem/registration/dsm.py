@@ -16,6 +16,7 @@ This module contains the following classes:
   transformation (includes a scale factor) between two sets of 3D points.
 """
 import logging
+import math
 import os
 from typing import Any
 from typing import Dict
@@ -444,6 +445,13 @@ class DsmRegistration:
                 f"\nY = +/-{self.rmse_xyz[1]:.3f},"
                 f"\nZ = +/-{self.rmse_xyz[2]:.3f},"
                 f"\n3D = +/-{self.rmse_3d:.3f}"
+            )
+            f.write("\nPropagated Error:")
+            f.write(
+                "\nAssumed global 3D error = +/-3m"
+                f"\n3D_RMSE = +/-{self.rmse_3d:.3f}"
+                "\nTotal Error is computed as √(global_3d_error²+3D_RMSE²)"
+                f"\nTotal Error = +/-{math.hypot(3, self.rmse_3d)}"
             )
             f.write("\n\n")
 
