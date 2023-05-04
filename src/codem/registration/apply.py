@@ -83,6 +83,8 @@ class ApplyRegistration:
         self.aoi_resolution = aoi_obj.native_resolution
         self.aoi_units_factor = aoi_obj.units_factor
         self.aoi_type = aoi_obj.type
+        self.aoi_area_or_point = aoi_obj.area_or_point
+        self.fnd_area_or_point = fnd_obj.area_or_point
         self.registration_transform = registration_parameters["matrix"]
         self.residual_vectors = residual_vectors
         self.residual_origins = residual_origins
@@ -99,7 +101,7 @@ class ApplyRegistration:
 
     def get_registration_transformation(
         self,
-    ) -> Union[np.ndarray, Dict[str, str]]:
+    ) -> Union[np.ndarray, pdal.Pipeline]:
         """
         Generates the transformation from the AOI to FND coordinate system.
         The transformation accommodates linear unit differences and the solved
@@ -128,16 +130,13 @@ class ApplyRegistration:
                 " ".join(item) for item in aoi_to_fnd_array.astype(str)
             ][0]
             if self.fnd_crs is not None:
-                registration_transformation = {
-                    "type": "filters.transformation",
-                    "matrix": aoi_to_fnd_string,
-                    "override_srs": self.fnd_crs.to_string(),
-                }
+                registration_transformation = pdal.Filter.transformation(
+                    matrix=aoi_to_fnd_string, override_srs=self.fnd_crs.to_string()
+                )
             else:
-                registration_transformation = {
-                    "type": "filters.transformation",
-                    "matrix": aoi_to_fnd_string,
-                }
+                registration_transformation = pdal.Filter.transforamtion(
+                    matrix=aoi_to_fnd_string
+                )
             return registration_transformation
 
     def apply(self) -> None:
@@ -164,43 +163,60 @@ class ApplyRegistration:
         output_path = os.path.join(self.config["OUTPUT_DIR"], output_name)
 
         # construct pdal pipeline
-        pipe = [{"type": "readers.gdal", "filename": self.aoi_file, "header": "Z"}]
+        pipeline = pdal.Reader.gdal(filename=self.aoi_file, header="Z")
 
         # no nodata is present, filter based on its limits
         if self.aoi_nodata is not None:
-            range_filter_task = {
-                "type": "filters.range",
-                "limits": f"Z![{self.aoi_nodata}:{self.aoi_nodata}]",
-            }
-            pipe.append(range_filter_task)
+            pipeline |= pdal.Filter.range(
+                limits=f"Z![{self.aoi_nodata}:{self.aoi_nodata}]"
+            )
 
         # insert the transform filter to register the AOI
         registration_task = self.get_registration_transformation()
-        if isinstance(registration_task, dict):
-            pipe.append(registration_task)
+        if isinstance(registration_task, pdal.pipeline.Filter):
+            pipeline |= registration_task
         else:
             raise ValueError(
                 f"get_registration_transformation returned {type(registration_task)} "
                 "not a dictionary of strings as needed for the pdal pipeline."
             )
 
-        # pdal writing task
-        writer_task = {
-            "type": "writers.gdal",
+        writer_kwargs = {
             "resolution": self.aoi_resolution,
             "output_type": "idw",
             "filename": output_path,
+            # TODO this might not be right, might be coma separated values!!!!
             "metadata": (
                 f"CODEM_VERSION={__version__},"
-                f"TIFFTAG_IMAGEDESCRIPTION=RegisteredCompliment"
+                "TIFFTAG_IMAGEDESCRIPTION=RegisteredCompliment"
             ),
         }
-        # Add nodata argument only if nodata is actually present
+
+        if self.aoi_area_or_point in ("Area", "Point"):
+            writer_kwargs["metadata"] += f",AREA_OR_POINT={self.aoi_area_or_point}"  # type: ignore
+
+            # do we need to accommodate area or point offsets?
+            if (
+                self.fnd_area_or_point != "Unknown"
+                and self.fnd_area_or_point != self.aoi_area_or_point
+            ):
+                tx = 0.5 * self.aoi_resolution
+                ty = 0.5 * self.aoi_resolution
+                if self.fnd_area_or_point == "Area":
+                    # foundation is area
+                    # compliment is point
+                    matrix = f"0 0 0 {tx} 0 1 0 {ty} 0 0 1 0 0 0 0 1"
+                else:
+                    # foundation is point
+                    # compliment is area
+                    matrix = f"0 0 0 -{tx} 0 1 0 -{ty} 0 0 1 0 0 0 0 1"
+                pipeline |= pdal.Filter.transformation(matrix=matrix)
+
         if self.aoi_nodata is not None:
-            writer_task["nodata"] = self.aoi_nodata
-        pipe.append(writer_task)
-        p = pdal.Pipeline(json.dumps(pipe))
-        p.execute()
+            writer_kwargs["nodata"] = self.aoi_nodata
+
+        pipeline |= pdal.Writer.gdal(**writer_kwargs)
+        pipeline.execute()
 
         self.logger.info(
             f"Registration has been applied to AOI-DSM and saved to: {self.out_name}"
@@ -257,7 +273,7 @@ class ApplyRegistration:
             # save the interpolated data to a new TIF file. We only save to TIF
             # files since they are known to handle additional bands.
             root, _ = os.path.splitext(self.out_name)
-            out_name_res = root + "_residuals.tif"
+            out_name_res = f"{root}_residuals.tif"
 
             profile.update(count=6, driver="GTiff")
 
@@ -335,23 +351,18 @@ class ApplyRegistration:
         """
         Applies the registration transformation to a point cloud file.
         """
-        pipe = [
-            self.aoi_file,
-            self.get_registration_transformation(),
-            self.out_name,
-        ]
-        p = pdal.Pipeline(json.dumps(pipe))
-        p.execute()
+        pipeline = pdal.Reader(self.aoi_file)
+        pipeline |= self.get_registration_transformation()
+        pipeline |= pdal.Writer.las(filename=self.out_name)
+
+        pipeline.execute()
         self.logger.info(
             f"Registration has been applied to AOI-PCLOUD and saved to: {self.out_name}"
         )
 
         if self.config["ICP_SAVE_RESIDUALS"]:
             # open up the registered output file, read in xy's
-            pipe = [
-                self.out_name,
-            ]
-            p = pdal.Pipeline(json.dumps(pipe))
+            p = pdal.Reader(self.out_name).pipeline()
             p.execute()
             arrays = p.arrays
             array = arrays[0]
