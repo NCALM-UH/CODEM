@@ -187,6 +187,9 @@ class ApplyRegistration:
             "filename": output_path,
             "metadata": (
                 f"CODEM_VERSION={__version__},"
+                "CODEM_INFO=Data registered and adjusted to "
+                f"{os.path.basename(self.config['FND_FILE'])} by NCALM CODEM. "
+                f"Total registration mean square error {self.registration_rmse:.3f},"
                 "TIFFTAG_IMAGEDESCRIPTION=RegisteredCompliment"
             ),
         }
