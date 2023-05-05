@@ -84,8 +84,8 @@ class ApplyRegistration:
         self.aoi_units_factor = aoi_obj.units_factor
         self.aoi_type = aoi_obj.type
         self.aoi_area_or_point = aoi_obj.area_or_point
-        self.fnd_area_or_point = fnd_obj.area_or_point
         self.registration_transform = registration_parameters["matrix"]
+        self.registration_rmse = registration_parameters["rmse_3d"]
         self.residual_vectors = residual_vectors
         self.residual_origins = residual_origins
         self.config = config
@@ -185,7 +185,6 @@ class ApplyRegistration:
             "resolution": self.aoi_resolution,
             "output_type": "idw",
             "filename": output_path,
-            # TODO this might not be right, might be coma separated values!!!!
             "metadata": (
                 f"CODEM_VERSION={__version__},"
                 "TIFFTAG_IMAGEDESCRIPTION=RegisteredCompliment"
@@ -194,23 +193,6 @@ class ApplyRegistration:
 
         if self.aoi_area_or_point in ("Area", "Point"):
             writer_kwargs["metadata"] += f",AREA_OR_POINT={self.aoi_area_or_point}"  # type: ignore
-
-            # do we need to accommodate area or point offsets?
-            if (
-                self.fnd_area_or_point != "Unknown"
-                and self.fnd_area_or_point != self.aoi_area_or_point
-            ):
-                tx = 0.5 * self.aoi_resolution
-                ty = 0.5 * self.aoi_resolution
-                if self.fnd_area_or_point == "Area":
-                    # foundation is area
-                    # compliment is point
-                    matrix = f"0 0 0 {tx} 0 1 0 {ty} 0 0 1 0 0 0 0 1"
-                else:
-                    # foundation is point
-                    # compliment is area
-                    matrix = f"0 0 0 -{tx} 0 1 0 -{ty} 0 0 1 0 0 0 0 1"
-                pipeline |= pdal.Filter.transformation(matrix=matrix)
 
         if self.aoi_nodata is not None:
             writer_kwargs["nodata"] = self.aoi_nodata
