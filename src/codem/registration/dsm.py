@@ -426,7 +426,7 @@ class DsmRegistration:
         self.logger.info(
             f"Saving DSM feature registration parameters to: {output_file}"
         )
-        with open(output_file, "w") as f:
+        with open(output_file, "w", encoding="utf_8") as f:
             f.write("DSM FEATURE REGISTRATION")
             f.write("\n------------------------")
             f.write(f"\nTransformation matrix: \n {X}")
@@ -451,7 +451,7 @@ class DsmRegistration:
                 "\nAssumed global 3D error = +/-3m"
                 f"\n3D_RMSE = +/-{self.rmse_3d:.3f}"
                 "\nTotal Error is computed as √(global_3d_error²+3D_RMSE²)"
-                f"\nTotal Error = +/-{math.hypot(3, self.rmse_3d)}"
+                f"\nTotal Error = +/-{math.hypot(3, self.rmse_3d):.3f}"
             )
             f.write("\n\n")
 
