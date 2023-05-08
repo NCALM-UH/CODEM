@@ -1,4 +1,4 @@
-__version__ = "0.25.1"
+__version__ = "0.25.2.dev0"
 
 import codem.lib.log as log
 import codem.lib.resources as resources
