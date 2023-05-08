@@ -446,7 +446,6 @@ class DSM(GeoData):
                 self.logger.debug(
                     f"'AREA_OR_POINT' not supplied in {tag}-{self.type.upper()} - defaulting to 'Area'"
                 )
-
         if self.nodata is None:
             self.logger.info(f"{tag}-{self.type.upper()} does not have a nodata value.")
         if self.transform == rasterio.Affine.identity():
@@ -781,7 +780,6 @@ def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]) -> Non
             [clipped_bounding_boxes[key].top, clipped_bounding_boxes[key].bottom],
         )
         dataset_obj.window = windows.Window.from_slices(slice(*xs), slice(*ys))
-        # breakpoint()
         # need that we know the window, create the DSM with resampling
         dataset_obj._create_dsm(resample=True)
     return None
