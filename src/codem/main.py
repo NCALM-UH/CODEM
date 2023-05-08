@@ -287,6 +287,11 @@ def get_args() -> argparse.Namespace:
         help="boolean to include or exclude scale from the solved registration",
     )
     ap.add_argument(
+        "--icp-save-residuals",
+        action="store_true",
+        help="Write ICP residual information",
+    )
+    ap.add_argument(
         "--verbose", "-v", action="store_true", help="turn on verbose logging"
     )
     ap.add_argument(
@@ -320,7 +325,7 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         ICP_ROBUST=args.icp_robust,
         ICP_SOLVE_SCALE=args.icp_solve_scale,
         VERBOSE=args.verbose,
-        ICP_SAVE_RESIDUALS=False,
+        ICP_SAVE_RESIDUALS=args.icp_save_residuals,
         TIGHT_SEARCH=args.tight_search,
     )
     return dataclasses.asdict(config)

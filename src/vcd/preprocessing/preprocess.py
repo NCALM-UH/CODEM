@@ -264,7 +264,7 @@ class VCD:
             metadata = (
                 f"TIFFTAG_XRESOLUTION={resolution},"
                 f"TIFFTAG_YRESOLUTION={resolution},"
-                f"TIFFTAG_IMAGEDESCRIPTION={product.description}"
+                f"TIFFTAG_IMAGEDESCRIPTION={product.description},"
                 f"CODEM_VERSION={__version__}"
             )
             gdalopts = (

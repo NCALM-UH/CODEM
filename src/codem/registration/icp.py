@@ -466,7 +466,7 @@ class IcpRegistration:
         output_file = os.path.join(self.config["OUTPUT_DIR"], "registration.txt")
 
         self.logger.info(f"Saving ICP registration parameters to: {output_file}")
-        with open(output_file, "a") as f:
+        with open(output_file, "a", encoding="utf_8") as f:
             f.write("ICP REGISTRATION")
             f.write("\n----------------")
             f.write(f"\nTransformation matrix: \n {X}")
