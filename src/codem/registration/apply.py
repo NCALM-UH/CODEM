@@ -134,7 +134,7 @@ class ApplyRegistration:
                     matrix=aoi_to_fnd_string, override_srs=self.fnd_crs.to_string()
                 )
             else:
-                registration_transformation = pdal.Filter.transforamtion(
+                registration_transformation = pdal.Filter.transformation(
                     matrix=aoi_to_fnd_string
                 )
             return registration_transformation
