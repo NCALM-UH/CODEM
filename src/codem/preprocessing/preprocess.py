@@ -231,6 +231,8 @@ class GeoData:
             raise RuntimeError(
                 "self.transform is not initialized, you run the prep() method?"
             )
+        # this step gets tripped up by GCS since the transform numbers are going to be tiny!
+        breakpoint()
         scale = np.sqrt(self.transform[0] ** 2 + self.transform[1] ** 2)
         weak_filtered = cv2.GaussianBlur(self.infilled, (0, 0), self.weak_size / scale)
         strong_filtered = cv2.GaussianBlur(
@@ -322,7 +324,9 @@ class GeoData:
         tag = ["AOI", "Foundation"][int(self.fnd)]
         self.logger.info(f"Preparing {tag}-{self.type.upper()} for registration.")
         self._infill()
+        self.logger.info(f"Preparing {tag}-{self.type.upper()} for normalization.")
         self._normalize()
+        self.logger.info(f"Preparing {tag}-{self.type.upper()} for point cloudification.")
         self._dsm2pc()
 
         if self.fnd:
@@ -361,12 +365,15 @@ class DSM(GeoData):
         a scale factor to convert to meters.
         """
 
+        #might just have to project if in GCS.... but maybe there is a non-intrusive way to have the units and necessary scaling things converted to meters where they need to be.
+
         with rasterio.open(self.file) as data:
             resample_factor = (
                 self.native_resolution / self.resolution if resample else 1.0
             )
             tag = ["AOI", "Foundation"][int(self.fnd)]
-            if resample_factor != 1:
+            breakpoint()
+            if resample_factor != 1 or self.native_resolution != self.resolution:
                 self.logger.info(
                     f"Resampling {tag}-{self.type.upper()} to a pixel resolution of: {self.resolution} meters"
                 )
@@ -475,12 +482,60 @@ class DSM(GeoData):
                 )
 
             tag = ["AOI", "Foundation"][int(self.fnd)]
+
             if data.crs is None:
                 self.logger.warning(
                     f"Linear unit for {tag}-{self.type.upper()} not detected -> "
                     "meters assumed"
                 )
                 self.native_resolution = abs(T.a)
+            
+            elif not data.crs.is_projected:
+                self.logger.warning(
+                    f"Coordinate system for {tag}-{self.type.upper()} not projected -> "
+                    f"meters assumed. For more accurate results, put {tag}-{self.type.upper()} "
+                    "in projected coordinate system."
+                )
+                # need to calculate the degree resolution to the meter resolution (not super accurately), maybe warn the user that it will not be as accurate as it can be.
+                unit_factor = data.crs.units_factor[1]
+                radians = unit_factor/T[0]
+                # haversine formula
+                lon1 = 0
+                lat1 = 0
+                lon2 = radians
+                lat2 = 0
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+                c = 2 * math.asin(math.sqrt(a))
+                self.native_resolution = c
+
+                # project to web mercator
+
+                # dst_crs = 'EPSG:3857'
+
+                # transform, width, height = rasterio.warp.calculate_default_transform(
+                #     data.crs, dst_crs, data.width, data.height, *data.bounds)
+                # kwargs = data.meta.copy()
+                # kwargs.update({
+                #     'crs': dst_crs,
+                #     'transform': transform,
+                #     'width': width,
+                #     'height': height
+                # })
+
+                # with rasterio.open('/tmp/RGB.byte.webmercator.tif', 'w', **kwargs) as dst:
+                #     for i in range(1, data.count + 1):
+                #         rasterio.warp.reproject(
+                #             source=rasterio.band(data, i),
+                #             destination=rasterio.band(dst, i),
+                #             data_transform=data.transform,
+                #             data_crs=data.crs,
+                #             dst_transform=transform,
+                #             dst_crs=dst_crs,
+                #             resampling=rasterio.warp.Resampling.nearest)
+
+
             else:
                 self.logger.info(
                     f"Linear unit for {tag}-{self.type.upper()} detected as "
@@ -557,11 +612,20 @@ class PointCloud(GeoData):
         tag = ["AOI", "Foundation"][int(self.fnd)]
         metadata = pipeline.metadata["metadata"]
         reader_metadata = [val for key, val in metadata.items() if "readers" in key]
+        # breakpoint()
+        crs = CRS.from_string(reader_metadata[0]["srs"]["horizontal"])
         if reader_metadata[0]["srs"]["horizontal"] == "":
             self.logger.warning(
                 f"Linear unit for {tag}-{self.type.upper()} not detected --> meters assumed"
             )
             spacing = metadata["filters.hexbin"]["avg_pt_spacing"]
+        
+        elif not crs.is_projected:
+            self.logger.warning(
+                f"Coordinate system for {tag}-{self.type.upper()} not projected --> meters assumed"
+            )
+            spacing = metadata["filters.hexbin"]["avg_pt_spacing"]
+        
         else:
             crs = CRS.from_string(reader_metadata[0]["srs"]["horizontal"])
             self.logger.info(
