@@ -496,9 +496,13 @@ class DSM(GeoData):
                     f"meters assumed. For more accurate results, put {tag}-{self.type.upper()} "
                     "in projected coordinate system."
                 )
+
+
+
+
                 # need to calculate the degree resolution to the meter resolution (not super accurately), maybe warn the user that it will not be as accurate as it can be.
                 unit_factor = data.crs.units_factor[1]
-                radians = unit_factor/T[0]
+                radians = T[0]/unit_factor
                 # haversine formula
                 lon1 = 0
                 lat1 = 0
@@ -508,33 +512,42 @@ class DSM(GeoData):
                 dlat = lat2 - lat1
                 a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
                 c = 2 * math.asin(math.sqrt(a))
-                self.native_resolution = c
+                # self.native_resolution = c
+                # src_transform = self.transform
+                # dst_transform = rasterio.Affine(c, src_transform[1], src_transform[2], c, src_transform[4], src_transform[5])
+                # self.transform = dst_transform
+                # breakpoint()
 
                 # project to web mercator
 
-                # dst_crs = 'EPSG:3857'
+                dst_crs = 'EPSG:3857'
 
-                # transform, width, height = rasterio.warp.calculate_default_transform(
-                #     data.crs, dst_crs, data.width, data.height, *data.bounds)
-                # kwargs = data.meta.copy()
-                # kwargs.update({
-                #     'crs': dst_crs,
-                #     'transform': transform,
-                #     'width': width,
-                #     'height': height
-                # })
+                with rasterio.open(os.path.normpath(self.file)) as src:
+                    transform, width, height = rasterio._warp._calculate_default_transform(
+                    src.crs, dst_crs, src.width, src.height, *src.bounds)
+                    kwargs = src.meta.copy()
+                    kwargs.update({
+                        'crs': dst_crs,
+                        'transform': transform,
+                        'width': width,
+                        'height': height
+                    })
 
-                # with rasterio.open('/tmp/RGB.byte.webmercator.tif', 'w', **kwargs) as dst:
-                #     for i in range(1, data.count + 1):
-                #         rasterio.warp.reproject(
-                #             source=rasterio.band(data, i),
-                #             destination=rasterio.band(dst, i),
-                #             data_transform=data.transform,
-                #             data_crs=data.crs,
-                #             dst_transform=transform,
-                #             dst_crs=dst_crs,
-                #             resampling=rasterio.warp.Resampling.nearest)
 
+                    with rasterio.open('intermediate.tif', 'w', **kwargs) as dst:
+                        for i in range(1, src.count + 1):
+                            rasterio._warp._reproject(
+                                source=rasterio.band(src, i),
+                                destination=rasterio.band(dst, i),
+                                src_transform=src.transform,
+                                src_crs=src.crs,
+                                dst_transform=transform,
+                                dst_crs=dst_crs,
+                                resampling=Resampling.nearest)
+                self.transform = transform
+                self.native_resolution = abs(self.transform[0])
+
+                breakpoint()
 
             else:
                 self.logger.info(
