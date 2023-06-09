@@ -91,6 +91,7 @@ module = [
   "rasterio",
   "rasterio.coords",
   "rasterio.crs",
+  "rasterio.errors",
   "rasterio.enums",
   "rasterio.fill",
   "rasterio.transform",

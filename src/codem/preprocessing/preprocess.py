@@ -48,6 +48,7 @@ from rasterio.coords import BoundingBox
 from rasterio.coords import disjoint_bounds
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
+from rasterio.errors import CRSError
 from typing_extensions import TypedDict
 
 
@@ -616,38 +617,43 @@ class PointCloud(GeoData):
         """
         Calculates point cloud average point spacing.
         """
-        pdal_pipeline = [
-            self.file,
-            {"type": "filters.hexbin", "edge_size": 25, "threshold": 1},
-        ]
-        pipeline = pdal.Pipeline(json.dumps(pdal_pipeline))
+        tag = ["AOI", "Foundation"][int(self.fnd)]
+
+        pipeline = pdal.Reader(self.file)
+        pipeline |= pdal.Filter.hexbin(edge_size=25, threshold=1)
         pipeline.execute()
 
-        tag = ["AOI", "Foundation"][int(self.fnd)]
         metadata = pipeline.metadata["metadata"]
         reader_metadata = [val for key, val in metadata.items() if "readers" in key]
-        if reader_metadata[0]["srs"]["horizontal"] == "":
+        try:
+            crs = CRS.from_string(reader_metadata[0]["srs"]["horizontal"])
+        except (CRSError, IndexError, KeyError):
+            crs = None
+        if crs is None:
             self.logger.warning(
                 f"Linear unit for {tag}-{self.type.upper()} not detected --> meters assumed"
             )
-            spacing = metadata["filters.hexbin"]["avg_pt_spacing"]
+            self.units_factor = 1.0
+            self.units = "m"
+        elif not crs.is_projected:
+            self.logger.warning(
+                f"Coordinate system for {tag}-{self.type.upper()} not projected --> meters assumed"
+            )
+            self.units_factor = 1.0
+            self.units = "m"
         else:
-            crs = CRS.from_string(reader_metadata[0]["srs"]["horizontal"])
             self.logger.info(
                 f"Linear unit for {tag}-{self.type.upper()} detected as {crs.linear_units}."
             )
-            spacing = (
-                crs.linear_units_factor[1]
-                * metadata["filters.hexbin"]["avg_pt_spacing"]
-            )
             self.units_factor = crs.linear_units_factor[1]
             self.units = crs.linear_units
-
-        self.logger.info(
-            f"Calculated native resolution for {tag}-{self.type.upper()} as: {spacing:.1f} meters"
+        self.native_resolution = (
+            self.units_factor * metadata["filters.hexbin"]["avg_pt_spacing"]
         )
-
-        self.native_resolution = spacing
+        self.logger.info(
+            f"Calculated native resolution for {tag}-{self.type.upper()} as: "
+            f"{self.native_resolution :.1f} meters"
+        )
 
 
 class Mesh(GeoData):

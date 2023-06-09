@@ -340,7 +340,11 @@ class ApplyRegistration:
         """
         pipeline = pdal.Reader(self.aoi_file)
         pipeline |= self.get_registration_transformation()
-        pipeline |= pdal.Writer.las(filename=self.out_name)
+
+        writer_kwargs = {"filename": self.out_name}
+        if self.fnd_crs is not None:
+            writer_kwargs["a_srs"] = self.fnd_crs.to_wkt()
+        pipeline |= pdal.Writer.las(**writer_kwargs)
 
         pipeline.execute()
         self.logger.info(
