@@ -41,6 +41,7 @@ import pdal
 import pyproj
 import rasterio.fill
 import rasterio.transform
+import rasterio.warp
 import trimesh
 from rasterio import windows
 from rasterio.coords import BoundingBox
@@ -133,6 +134,21 @@ class GeoData:
             raise ValueError("Resolution must be greater than 0")
         self._resolution = value
         return None
+
+    def _PCS_from_GCS(
+        self,
+        affine: rasterio.Affine,
+    ) -> CRS:
+        utm_crs_list = pyproj.database.query_utm_crs_info(
+            datum_name="WGS 84",
+            area_of_interest=pyproj.aoi.AreaOfInterest(
+                west_lon_degree=affine.c,
+                south_lat_degree=affine.f,
+                east_lon_degree=affine.c,
+                north_lat_degree=affine.f,
+            ),
+        )
+        return CRS.from_epsg(utm_crs_list[0].code)
 
     def _read_dsm(self, file_path: str, force: bool = False) -> None:
         """
@@ -312,7 +328,9 @@ class GeoData:
     def _calculate_resolution(self) -> None:
         raise NotImplementedError
 
-    def _create_dsm(self, resample: bool = True) -> None:
+    def _create_dsm(
+        self, resample: bool = True, fallback_crs: Optional[CRS] = None
+    ) -> None:
         raise NotImplementedError
 
     def prep(self) -> None:
@@ -355,7 +373,9 @@ class DSM(GeoData):
         self.type = "dsm"
         self._calculate_resolution()
 
-    def _create_dsm(self, resample: bool = True) -> None:
+    def _create_dsm(
+        self, resample: bool = True, fallback_crs: Optional[CRS] = None
+    ) -> None:
         """
         Resamples the DSM to the registration pipeline resolution and applies
         a scale factor to convert to meters.
@@ -408,6 +428,30 @@ class DSM(GeoData):
             self.nodata = data.nodata
             self.crs = data.crs
 
+            if not self.fnd and self.crs is not None and not self.crs.is_projected:
+                # handle the case where compliment has a non-projected CRS
+                transform, width, height = rasterio.warp.calculate_default_transform(
+                    CRS.from_epsg("4326"),
+                    fallback_crs,
+                    self.dsm.shape[0],
+                    self.dsm.shape[1],
+                    *data.bounds,
+                )
+
+                dsm = np.zeros((width, height), dtype=self.dsm.dtype)
+                _, transform = rasterio.warp.reproject(
+                    source=rasterio.band(data, 1),
+                    destination=dsm,
+                    dst_transform=transform,
+                    dst_crs=fallback_crs,
+                    dst_nodata=data.nodata,
+                    resampling=Resampling.cubic,
+                )
+
+                self.transform = transform
+                self.crs = fallback_crs
+                self.dsm = dsm
+
             # Scale the elevation values into meters
             mask = (self._get_nodata_mask(self.dsm)).astype(bool)
             if np.can_cast(self.units_factor, self.dsm.dtype, casting="same_kind"):
@@ -446,6 +490,7 @@ class DSM(GeoData):
                 self.logger.debug(
                     f"'AREA_OR_POINT' not supplied in {tag}-{self.type.upper()} - defaulting to 'Area'"
                 )
+
         if self.nodata is None:
             self.logger.info(f"{tag}-{self.type.upper()} does not have a nodata value.")
         if self.transform == rasterio.Affine.identity():
@@ -481,6 +526,28 @@ class DSM(GeoData):
                     "meters assumed"
                 )
                 self.native_resolution = abs(T.a)
+                self.units = "m"
+            elif not data.crs.is_valid:
+                self.logger.warning(
+                    f"CRS {data.crs.to_wkt()} is not valid, assuming linear units "
+                    "are meters."
+                )
+                self.native_resolution = abs(T.a)
+                self.units = "m"
+            elif not data.crs.is_projected:
+                self.logger.info("CRS is not projected, converting to meters")
+                best_guess_crs = self._PCS_from_GCS(T)
+
+                T, _, _ = rasterio.warp.calculate_default_transform(
+                    CRS.from_epsg("4326"),
+                    best_guess_crs,
+                    data.width,
+                    data.height,
+                    *data.bounds,
+                )
+                self.native_resolution = abs(T.a)
+                self.crs = best_guess_crs
+                self.units = "m"
             else:
                 self.logger.info(
                     f"Linear unit for {tag}-{self.type.upper()} detected as "
@@ -505,7 +572,9 @@ class PointCloud(GeoData):
         self.type = "pcloud"
         self._calculate_resolution()
 
-    def _create_dsm(self, resample: bool = True) -> None:
+    def _create_dsm(
+        self, resample: bool = True, fallback_crs: Optional[CRS] = None
+    ) -> None:
         """
         Converts the point cloud to meters and rasters it to a DSM.
         """
@@ -591,7 +660,9 @@ class Mesh(GeoData):
         self.type = "mesh"
         self._calculate_resolution()
 
-    def _create_dsm(self, resample: bool = True) -> None:
+    def _create_dsm(
+        self, resample: bool = True, fallback_crs: Optional[CRS] = None
+    ) -> None:
         """
         Converts mesh vertices to meters and rasters them to a DSM.
         """

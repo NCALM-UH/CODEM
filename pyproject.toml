@@ -94,6 +94,7 @@ module = [
   "rasterio.enums",
   "rasterio.fill",
   "rasterio.transform",
+  "rasterio.warp",
   "rich",
   "rich.console",
   "rich.logging",

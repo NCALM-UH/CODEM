@@ -414,7 +414,7 @@ def preprocess(config: Dict[str, Any]) -> Tuple[GeoData, GeoData]:
     # create DSM, but if doing tight-search do not resample
     resample = not config["TIGHT_SEARCH"]
     fnd_obj._create_dsm(resample=resample)
-    aoi_obj._create_dsm(resample=resample)
+    aoi_obj._create_dsm(resample=resample, fallback_crs=fnd_obj.crs)
     return fnd_obj, aoi_obj
 
 
