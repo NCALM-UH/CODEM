@@ -220,17 +220,18 @@ class VCD:
         gh = self.gh
 
         thresholdFilter = pdal.Filter.range(limits="dZ3d![-{gh}:{gh}]".format(gh=gh))
-        clusterFilter = pdal.Filter.cluster(
-            min_points=self.after.config["MIN_POINTS"],
-            tolerance=self.after.config["CLUSTER_TOLERANCE"],
-        )
 
         conditions = [f"Classification=={id}" for id in self.after.config["CULL_CLUSTER_IDS"]]
         expression =" || ".join(conditions)
         rangeFilter = pdal.Filter.expression(expression=expression)
 
+        clusterFilter = pdal.Filter.cluster(
+            min_points=self.after.config["MIN_POINTS"],
+            tolerance=self.after.config["CLUSTER_TOLERANCE"],
+        )
+
         array = after.to_records()
-        self.clusters = pdal.Pipeline([thresholdFilter, clusterFilter, rangeFilter], [array])
+        self.clusters = pdal.Pipeline([thresholdFilter, rangeFilter, clusterFilter], [array])
         self.clusters.execute()
         cluster_df = pd.DataFrame(self.clusters.arrays[0])
 
