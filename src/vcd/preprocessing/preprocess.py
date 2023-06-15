@@ -167,10 +167,7 @@ class PointCloud:
             filters |= pdal.Filter.assign(assignment="Classification[:]=1")
             filters |= pdal.Filter.smrf()
 
-        # Trust (some) classification labels -- new workflow.
-        # TODO: allow user to choose between ground, ground+building, or ground+building+vegetation
         else:
-            filters |= pdal.Filter.expression(expression="Classification>=2 && Classification<=6")
             filters |= pdal.Filter.returns(groups="only")
         
         filters.execute()
@@ -233,36 +230,19 @@ class VCD:
         rangeFilter = pdal.Filter.expression(expression=expression)
 
         array = after.to_records()
-        self.ng_clusters = pdal.Pipeline([thresholdFilter, clusterFilter, rangeFilter], [array])
-        self.ng_clusters.execute()
-        ng_cluster_df = pd.DataFrame(self.ng_clusters.arrays[0])
+        self.clusters = pdal.Pipeline([thresholdFilter, clusterFilter, rangeFilter], [array])
+        self.clusters.execute()
+        cluster_df = pd.DataFrame(self.clusters.arrays[0])
 
         # Encode the size of each cluster as a new dimension for analysis.
-        ng_cluster_df['ClusterSize'] = ng_cluster_df.groupby(['ClusterID'])['ClusterID'].transform('count')
-        self.ng_cluster_sizes = ng_cluster_df["ClusterSize"].to_numpy()
+        cluster_df['ClusterSize'] = cluster_df.groupby(['ClusterID'])['ClusterID'].transform('count')
+        self.cluster_sizes = cluster_df["ClusterSize"].to_numpy()
 
         p = self.make_product(
-            ng_cluster_df.X,
-            ng_cluster_df.Y,
-            ng_cluster_df.ClusterID,
-            description=f"Non-ground clusters greater than {gh:.2f} height",
-        )
-        self.products.append(p)
-
-        array = after.to_records()
-        self.ground_clusters = pdal.Pipeline([thresholdFilter, clusterFilter, rangeFilter], [array])
-        self.ground_clusters.execute()
-        ground_cluster_df = pd.DataFrame(self.ground_clusters.arrays[0])
-
-        # Encode the size of each cluster as a new dimension for analysis.
-        ground_cluster_df['ClusterSize'] = ground_cluster_df.groupby(['ClusterID'])['ClusterID'].transform('count')
-        self.ground_cluster_sizes = ground_cluster_df["ClusterSize"].to_numpy()
-
-        p = self.make_product(
-            ground_cluster_df.X,
-            ground_cluster_df.Y,
-            ground_cluster_df.ClusterID,
-            description=f"Ground clusters greater than {gh:.2f} height",
+            cluster_df.X,
+            cluster_df.Y,
+            cluster_df.ClusterID,
+            description=f"Clusters greater than +/-{gh:.2f} height",
         )
         self.products.append(p)
 
@@ -332,54 +312,39 @@ class VCD:
             os.mkdir(os.path.join(self.before.config["OUTPUT_DIR"], "points"))
 
         # Determine Colormap
-        flex_max = min(
-            clusters.arrays[0]["dZ3d"].min()
-            for clusters in (self.ng_clusters, self.ground_clusters)
-        )
+        flex_max = self.clusters.arrays[0]["dZ3d"].min()
 
-        new_max = max(
-            clusters.arrays[0]["dZ3d"].max()
-            for clusters in (self.ng_clusters, self.ground_clusters)
-        )
+        new_max = self.clusters.arrays[0]["dZ3d"].max()
 
         divnorm = colors.TwoSlopeNorm(vmin=flex_max, vcenter=0, vmax=new_max)
         # we are only writing the first point-clouds
         colormap = plt.colormaps[self.before.config["COLORMAP"]]
 
         # write point cloud output
-        for output in ("ground", "new_ground"):
-            if output == "ground":
-                path = "gnd-clusters"
-                array = self.ground_clusters.arrays[0]
-                sizes = self.ground_cluster_sizes
-            elif output == "new_ground":
-                path = "ng-clusters"
-                array = self.ng_clusters.arrays[0]
-                sizes = self.ng_cluster_sizes
-            else:
-                raise RuntimeError("How did you even get here?")
+        path = "clusters"
+        array = self.clusters.arrays[0]
+        sizes = self.cluster_sizes
+        filename = os.path.join(
+            self.before.config["OUTPUT_DIR"], "points", f"{path}{format}"
+        )
 
-            filename = os.path.join(
-                self.before.config["OUTPUT_DIR"], "points", f"{path}{format}"
-            )
+        # convert colors from [0. 1] floats to [0, 65535] per LAS spec
+        rgb = np.array(
+            [
+                colors.to_rgba_array(colormap(divnorm(array["dZ3d"])))
+                * np.iinfo(np.uint16).max
+            ],
+            dtype=np.uint16,
+        )[0, :, :-1]
 
-            # convert colors from [0. 1] floats to [0, 65535] per LAS spec
-            rgb = np.array(
-                [
-                    colors.to_rgba_array(colormap(divnorm(array["dZ3d"])))
-                    * np.iinfo(np.uint16).max
-                ],
-                dtype=np.uint16,
-            )[0, :, :-1]
+        array = rfn.append_fields(
+            array, ["Red", "Green", "Blue", "ClusterSize"], [rgb[:, 0], rgb[:, 1], rgb[:, 2], sizes]
+        )
 
-            array = rfn.append_fields(
-                array, ["Red", "Green", "Blue", "ClusterSize"], [rgb[:, 0], rgb[:, 1], rgb[:, 2], sizes]
-            )
-
-            crs = self.after.crs
-            pipeline = pdal.Writer.las(
-                filename=filename,
-                extra_dims="all",
-                a_srs=crs.to_string() if crs is not None else crs,
-            ).pipeline(array)
-            pipeline.execute()
+        crs = self.after.crs
+        pipeline = pdal.Writer.las(
+            filename=filename,
+            extra_dims="all",
+            a_srs=crs.to_string() if crs is not None else crs,
+        ).pipeline(array)
+        pipeline.execute()

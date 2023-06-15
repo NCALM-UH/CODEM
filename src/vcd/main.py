@@ -282,8 +282,7 @@ def run_console(
         console.print("══════════ Meshing products ", justify="center")
 
         m = Mesh(v)
-        m.write("non-ground", m.cluster(v.ng_clusters))
-        m.write("ground", m.cluster(v.ground_clusters))
+        m.write("cluster", m.cluster(v.clusters))
 
         v.save()
         progress.advance(registration, 10)
