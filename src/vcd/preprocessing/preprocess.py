@@ -195,9 +195,8 @@ class VCD:
         # Compute height as delta Z between nearest point in before cloud from the after cloud -- original workflow.
         if not self.before.config["COMPUTE_HAG"]:
             tree3d = cKDTree(before[["X", "Y", "Z"]])
-            d3d, i3d = tree3d.query(after[["X", "Y", "Z"]], k=1)
+            _, i3d = tree3d.query(after[["X", "Y", "Z"]], k=1)
             after["dZ3d"] = after.Z - before.iloc[i3d].Z.values
-            after["d3"] = d3d
         
         # Compute height as HAG, treating after as non-ground and before as ground -- new workflow.
         else:
@@ -210,32 +209,31 @@ class VCD:
 
             # Stash original classifications, then compute HAG using TempClassification. Pop the original classifications.
             pipeline = pdal.Pipeline(dataframes=[allpoints])
-            pipeline |= pdal.Filter.ferry(dimensions="Classification=>OriginalClassification")
             pipeline |= pdal.Filter.ferry(dimensions="TempClassification=>Classification")
             pipeline |= pdal.Filter.hag_delaunay()
-            pipeline |= pdal.Filter.ferry(dimensions="OriginalClassification=>Classification")
             pipeline.execute()
 
             # Assign HAG as dZ3d and d3 in keeping with the original approach.
             result = pipeline.get_dataframe(0)
-            after["dZ3d"] = result[result["TempClassification"]==1]["HeightAboveGround"]
-            after["d3"] = after["dZ3d"]
+            after["dZ3d"] = result["HeightAboveGround"]
 
 
     def cluster(self) -> None:
         after = self.after.df
         gh = self.gh
 
+        thresholdFilter = pdal.Filter.range(limits="dZ3d![-{gh}:{gh}]".format(gh=gh))
         clusterFilter = pdal.Filter.cluster(
             min_points=self.after.config["MIN_POINTS"],
             tolerance=self.after.config["CLUSTER_TOLERANCE"],
         )
 
-        # We probably never want to consider those points that didn't cluster, ClusterID=0.
-        rangeFilter = pdal.Filter.range(limits="ClusterID[1:)")
+        conditions = [f"Classification=={id}" for id in self.after.config["CULL_CLUSTER_IDS"]]
+        expression =" || ".join(conditions)
+        rangeFilter = pdal.Filter.expression(expression=expression)
 
-        array = after[(after.Classification != 2) & (np.abs(after.d3) > gh)].to_records()
-        self.ng_clusters = pdal.Pipeline([clusterFilter, rangeFilter], [array])
+        array = after.to_records()
+        self.ng_clusters = pdal.Pipeline([thresholdFilter, clusterFilter, rangeFilter], [array])
         self.ng_clusters.execute()
         ng_cluster_df = pd.DataFrame(self.ng_clusters.arrays[0])
 
@@ -251,8 +249,8 @@ class VCD:
         )
         self.products.append(p)
 
-        array = after[(after.Classification == 2) & (np.abs(after.d3) > gh)].to_records()
-        self.ground_clusters = pdal.Pipeline([clusterFilter, rangeFilter], [array])
+        array = after.to_records()
+        self.ground_clusters = pdal.Pipeline([thresholdFilter, clusterFilter, rangeFilter], [array])
         self.ground_clusters.execute()
         ground_cluster_df = pd.DataFrame(self.ground_clusters.arrays[0])
 
