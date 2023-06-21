@@ -136,21 +136,6 @@ class GeoData:
         self._resolution = value
         return None
 
-    def _PCS_from_GCS(
-        self,
-        affine: rasterio.Affine,
-    ) -> CRS:
-        utm_crs_list = pyproj.database.query_utm_crs_info(
-            datum_name="WGS 84",
-            area_of_interest=pyproj.aoi.AreaOfInterest(
-                west_lon_degree=affine.c,
-                south_lat_degree=affine.f,
-                east_lon_degree=affine.c,
-                north_lat_degree=affine.f,
-            ),
-        )
-        return CRS.from_epsg(utm_crs_list[0].code)
-
     def _read_dsm(self, file_path: str, force: bool = False) -> None:
         """
         Reads in DSM data from a given file path.
@@ -429,7 +414,16 @@ class DSM(GeoData):
             self.nodata = data.nodata
             self.crs = data.crs
 
-            if not self.fnd and self.crs is not None and not self.crs.is_projected:
+            # not any() == all(not, not, not)
+            if not any(
+                (
+                    self.fnd,  # the dataset is the compliment
+                    (
+                        self.crs is not None
+                        and self.crs.is_projected  # the CRS is not projected
+                    ),
+                ),
+            ):
                 # handle the case where compliment has a non-projected CRS
                 transform, width, height = rasterio.warp.calculate_default_transform(
                     CRS.from_epsg("4326"),
@@ -537,8 +531,20 @@ class DSM(GeoData):
                 self.units = "m"
             elif not data.crs.is_projected:
                 self.logger.info("CRS is not projected, converting to meters")
-                best_guess_crs = self._PCS_from_GCS(T)
 
+                # determine appropriate UTM CRSs
+                utm_crs_list = pyproj.database.query_utm_crs_info(
+                    datum_name="WGS 84",
+                    area_of_interest=pyproj.aoi.AreaOfInterest(
+                        west_lon_degree=T.c,
+                        south_lat_degree=T.f,
+                        east_lon_degree=T.c,
+                        north_lat_degree=T.f,
+                    ),
+                )
+                best_guess_crs = CRS.from_epsg(utm_crs_list[0].code)
+
+                # transform from GCS to UTM for resolution purposes
                 T, _, _ = rasterio.warp.calculate_default_transform(
                     CRS.from_epsg("4326"),
                     best_guess_crs,
