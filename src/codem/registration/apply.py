@@ -81,6 +81,7 @@ class ApplyRegistration:
         self.aoi_file = aoi_obj.file
         self.aoi_nodata = aoi_obj.nodata
         self.aoi_resolution = aoi_obj.native_resolution
+        self.aoi_crs = aoi_obj.crs
         self.aoi_units_factor = aoi_obj.units_factor
         self.aoi_type = aoi_obj.type
         self.aoi_area_or_point = aoi_obj.area_or_point
@@ -129,14 +130,9 @@ class ApplyRegistration:
             aoi_to_fnd_string = [
                 " ".join(item) for item in aoi_to_fnd_array.astype(str)
             ][0]
-            if self.fnd_crs is not None:
-                registration_transformation = pdal.Filter.transformation(
-                    matrix=aoi_to_fnd_string, override_srs=self.fnd_crs.to_string()
-                )
-            else:
-                registration_transformation = pdal.Filter.transformation(
-                    matrix=aoi_to_fnd_string
-                )
+            registration_transformation = pdal.Filter.transformation(
+                matrix=aoi_to_fnd_string
+            )
             return registration_transformation
 
     def apply(self) -> None:
@@ -161,15 +157,21 @@ class ApplyRegistration:
         root, ext = os.path.splitext(input_name)
         output_name = f"{root}_registered{ext}"
         output_path = os.path.join(self.config["OUTPUT_DIR"], output_name)
-
         # construct pdal pipeline
-        pipeline = pdal.Reader.gdal(filename=self.aoi_file, header="Z")
+        pipeline = pdal.Reader.gdal(
+            filename=self.aoi_file,
+            header="Z",
+        )
 
         # no nodata is present, filter based on its limits
         if self.aoi_nodata is not None:
             pipeline |= pdal.Filter.range(
                 limits=f"Z![{self.aoi_nodata}:{self.aoi_nodata}]"
             )
+
+        # handle the case where the AOI underwent a CRS change
+        if self.aoi_crs is not None:  # if statement to satisfy mypy
+            pipeline |= pdal.Filter.reprojection(out_srs=self.aoi_crs.to_wkt())
 
         # insert the transform filter to register the AOI
         registration_task = self.get_registration_transformation()
@@ -338,7 +340,11 @@ class ApplyRegistration:
         """
         pipeline = pdal.Reader(self.aoi_file)
         pipeline |= self.get_registration_transformation()
-        pipeline |= pdal.Writer.las(filename=self.out_name)
+
+        writer_kwargs = {"filename": self.out_name}
+        if self.fnd_crs is not None:
+            writer_kwargs["a_srs"] = self.fnd_crs.to_wkt()
+        pipeline |= pdal.Writer.las(**writer_kwargs)
 
         pipeline.execute()
         self.logger.info(
