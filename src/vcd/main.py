@@ -78,6 +78,8 @@ class VcdRunConfig:
     CULL_CLUSTER_IDS: Tuple[int, ...] = (-1, 0, 1)
     OUTPUT_DIR: Optional[str] = None
     COLORMAP: str = "RdBu"
+    TRUST_LABELS: bool = False
+    COMPUTE_HAG: bool = False
 
     def __post_init__(self) -> None:
         # set output directory
@@ -183,6 +185,23 @@ def get_args() -> argparse.Namespace:
             "for list of options."
         ),
     )
+    ap.add_argument(
+        "--trust_labels",
+        action="store_true",
+        help=(
+            "Trusts existing classification labels in the removal of vegetation/noise, "
+            "otherwise return information is used to approximate vegetation/noise "
+            "detection."
+        ),
+    )
+    ap.add_argument(
+        "--compute_hag",
+        action="store_true",
+        help=(
+            "Compute height above ground between after scan (non-ground) and before "
+            "scan (ground), otherwise compute to nearest neighbor from after to before."
+        ),
+    )
     args = ap.parse_args()
     return args
 
@@ -198,6 +217,8 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         MIN_POINTS=int(args.min_points),
         CLUSTER_TOLERANCE=float(args.cluster_tolerance),
         CULL_CLUSTER_IDS=tuple(map(int, args.cull_cluster_ids.split(","))),
+        TRUST_LABELS=args.trust_labels,
+        COMPUTE_HAG=args.compute_hag,
     )
     return dataclasses.asdict(config)
 
@@ -261,8 +282,7 @@ def run_console(
         console.print("══════════ Meshing products ", justify="center")
 
         m = Mesh(v)
-        m.write("non-ground", m.cluster(v.ng_clusters))
-        m.write("ground", m.cluster(v.ground_clusters))
+        m.write("cluster", m.cluster(v.clusters))
 
         v.save()
         progress.advance(registration, 10)

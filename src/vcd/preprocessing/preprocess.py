@@ -38,6 +38,8 @@ class VCDParameters(TypedDict):
     CLUSTER_TOLERANCE: float
     CULL_CLUSTER_IDS: Tuple[int, ...]
     COLORMAP: str
+    TRUST_LABELS: bool
+    COMPUTE_HAG: bool
     log: Log
 
 
@@ -153,15 +155,21 @@ class PointCloud:
         self.crs = filters.crs
         self.utm = filters.utm
 
-        filters |= pdal.Filter.range(limits="Classification![7:7]")
-        filters |= pdal.Filter.range(limits="Classification![18:)")
-        filters |= pdal.Filter.range(limits="Classification![9:9]")
-        filters |= pdal.Filter.returns(groups="only")
-        filters |= pdal.Filter.elm(cell=20.0)
-        filters |= pdal.Filter.outlier(where="Classification!=7")
-        filters |= pdal.Filter.range(limits="Classification![7:7]")
-        filters |= pdal.Filter.assign(assignment="Classification[:]=1")
-        filters |= pdal.Filter.smrf()
+        # Do not (fully) trust original classifications -- original workflow.
+        if not self.config["TRUST_LABELS"]:
+            filters |= pdal.Filter.range(limits="Classification![7:7]")
+            filters |= pdal.Filter.range(limits="Classification![18:)")
+            filters |= pdal.Filter.range(limits="Classification![9:9]")
+            filters |= pdal.Filter.returns(groups="only")
+            filters |= pdal.Filter.elm(cell=20.0)
+            filters |= pdal.Filter.outlier(where="Classification!=7")
+            filters |= pdal.Filter.range(limits="Classification![7:7]")
+            filters |= pdal.Filter.assign(assignment="Classification[:]=1")
+            filters |= pdal.Filter.smrf()
+
+        else:
+            filters |= pdal.Filter.returns(groups="only")
+        
         filters.execute()
         self.pipeline = filters
         return filters
@@ -174,53 +182,68 @@ class VCD:
         self.products: List[Product] = []
         self.gh = before.config["GROUNDHEIGHT"]
         self.resolution = before.config["RESOLUTION"]
+        self.trust_labels = before.config["TRUST_LABELS"]
+        self.compute_hag = before.config["COMPUTE_HAG"]
 
     def compute_indexes(self) -> None:
         after = self.after.df
         before = self.before.df
 
-        tree3d = cKDTree(before[["X", "Y", "Z"]])
-        d3d, i3d = tree3d.query(after[["X", "Y", "Z"]], k=1)
+        # Compute height as delta Z between nearest point in before cloud from the after cloud -- original workflow.
+        if not self.before.config["COMPUTE_HAG"]:
+            tree3d = cKDTree(before[["X", "Y", "Z"]])
+            _, i3d = tree3d.query(after[["X", "Y", "Z"]], k=1)
+            after["dZ3d"] = after.Z - before.iloc[i3d].Z.values
+        
+        # Compute height as HAG, treating after as non-ground and before as ground -- new workflow.
+        else:
+            # Assing after non-ground, before ground.
+            after["TempClassification"] = 1
+            before["TempClassification"] = 2
 
-        after["dX3d"] = after.X - before.iloc[i3d].X.values
-        after["dY3d"] = after.Y - before.iloc[i3d].Y.values
-        after["dZ3d"] = after.Z - before.iloc[i3d].Z.values
+            # Merge clouds.
+            allpoints = pd.concat([after, before])
 
-        after["d3"] = d3d
+            # Stash original classifications, then compute HAG using TempClassification. Pop the original classifications.
+            pipeline = pdal.Pipeline(dataframes=[allpoints])
+            pipeline |= pdal.Filter.ferry(dimensions="TempClassification=>Classification")
+            pipeline |= pdal.Filter.hag_delaunay()
+            pipeline.execute()
+
+            # Assign HAG as dZ3d and d3 in keeping with the original approach.
+            result = pipeline.get_dataframe(0)
+            after["dZ3d"] = result["HeightAboveGround"]
+
 
     def cluster(self) -> None:
         after = self.after.df
         gh = self.gh
 
-        array = after[(after.Classification != 2) & (after.d3 > gh)].to_records()
-        self.ng_clusters = pdal.Filter.cluster(
+        thresholdFilter = pdal.Filter.range(limits="dZ3d![-{gh}:{gh}]".format(gh=gh))
+
+        conditions = [f"Classification=={id}" for id in self.after.config["CULL_CLUSTER_IDS"]]
+        expression =" || ".join(conditions)
+        rangeFilter = pdal.Filter.expression(expression=expression)
+
+        clusterFilter = pdal.Filter.cluster(
             min_points=self.after.config["MIN_POINTS"],
             tolerance=self.after.config["CLUSTER_TOLERANCE"],
-        ).pipeline(array)
-        self.ng_clusters.execute()
-        ng_cluster_df = pd.DataFrame(self.ng_clusters.arrays[0])
-
-        p = self.make_product(
-            ng_cluster_df.X,
-            ng_cluster_df.Y,
-            ng_cluster_df.ClusterID,
-            description=f"Non-ground clusters greater than {gh:.2f} height",
         )
-        self.products.append(p)
 
-        array = after[(after.Classification == 2) & (after.d3 > gh)].to_records()
-        self.ground_clusters = pdal.Filter.cluster(
-            min_points=self.after.config["MIN_POINTS"],
-            tolerance=self.after.config["CLUSTER_TOLERANCE"],
-        ).pipeline(array)
-        self.ground_clusters.execute()
-        ground_cluster_df = pd.DataFrame(self.ground_clusters.arrays[0])
+        array = after.to_records()
+        self.clusters = pdal.Pipeline([thresholdFilter, rangeFilter, clusterFilter], [array])
+        self.clusters.execute()
+        cluster_df = pd.DataFrame(self.clusters.arrays[0])
+
+        # Encode the size of each cluster as a new dimension for analysis.
+        cluster_df['ClusterSize'] = cluster_df.groupby(['ClusterID'])['ClusterID'].transform('count')
+        self.cluster_sizes = cluster_df["ClusterSize"].to_numpy()
 
         p = self.make_product(
-            ground_cluster_df.X,
-            ground_cluster_df.Y,
-            ground_cluster_df.ClusterID,
-            description=f"Ground clusters greater than {gh:.2f} height",
+            cluster_df.X,
+            cluster_df.Y,
+            cluster_df.ClusterID,
+            description=f"Clusters greater than +/-{gh:.2f} height",
         )
         self.products.append(p)
 
@@ -290,52 +313,39 @@ class VCD:
             os.mkdir(os.path.join(self.before.config["OUTPUT_DIR"], "points"))
 
         # Determine Colormap
-        flex_max = min(
-            clusters.arrays[0]["dZ3d"].min()
-            for clusters in (self.ng_clusters, self.ground_clusters)
-        )
+        flex_max = self.clusters.arrays[0]["dZ3d"].min()
 
-        new_max = max(
-            clusters.arrays[0]["dZ3d"].max()
-            for clusters in (self.ng_clusters, self.ground_clusters)
-        )
+        new_max = self.clusters.arrays[0]["dZ3d"].max()
 
         divnorm = colors.TwoSlopeNorm(vmin=flex_max, vcenter=0, vmax=new_max)
         # we are only writing the first point-clouds
         colormap = plt.colormaps[self.before.config["COLORMAP"]]
 
         # write point cloud output
-        for output in ("ground", "new_ground"):
-            if output == "ground":
-                path = "gnd-clusters"
-                array = self.ground_clusters.arrays[0]
-            elif output == "new_ground":
-                path = "ng-clusters"
-                array = self.ng_clusters.arrays[0]
-            else:
-                raise RuntimeError("How did you even get here?")
+        path = "clusters"
+        array = self.clusters.arrays[0]
+        sizes = self.cluster_sizes
+        filename = os.path.join(
+            self.before.config["OUTPUT_DIR"], "points", f"{path}{format}"
+        )
 
-            filename = os.path.join(
-                self.before.config["OUTPUT_DIR"], "points", f"{path}{format}"
-            )
+        # convert colors from [0. 1] floats to [0, 65535] per LAS spec
+        rgb = np.array(
+            [
+                colors.to_rgba_array(colormap(divnorm(array["dZ3d"])))
+                * np.iinfo(np.uint16).max
+            ],
+            dtype=np.uint16,
+        )[0, :, :-1]
 
-            # convert colors from [0. 1] floats to [0, 65535] per LAS spec
-            rgb = np.array(
-                [
-                    colors.to_rgba_array(colormap(divnorm(array["dZ3d"])))
-                    * np.iinfo(np.uint16).max
-                ],
-                dtype=np.uint16,
-            )[0, :, :-1]
+        array = rfn.append_fields(
+            array, ["Red", "Green", "Blue", "ClusterSize"], [rgb[:, 0], rgb[:, 1], rgb[:, 2], sizes]
+        )
 
-            array = rfn.append_fields(
-                array, ["Red", "Green", "Blue"], [rgb[:, 0], rgb[:, 1], rgb[:, 2]]
-            )
-
-            crs = self.after.crs
-            pipeline = pdal.Writer.las(
-                filename=filename,
-                extra_dims="all",
-                a_srs=crs.to_string() if crs is not None else crs,
-            ).pipeline(array)
-            pipeline.execute()
+        crs = self.after.crs
+        pipeline = pdal.Writer.las(
+            filename=filename,
+            extra_dims="all",
+            a_srs=crs.to_string() if crs is not None else crs,
+        ).pipeline(array)
+        pipeline.execute()

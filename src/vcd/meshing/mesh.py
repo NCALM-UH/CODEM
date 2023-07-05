@@ -41,6 +41,7 @@ class Mesh:
                     )
                 else:
                     print("Cluster has no points!")
+                continue
 
             x = arr["X"]
             y = arr["Y"]
