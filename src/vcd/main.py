@@ -75,7 +75,8 @@ class VcdRunConfig:
     VERBOSE: bool = False
     MIN_POINTS: int = 30
     CLUSTER_TOLERANCE: float = 2.0
-    CULL_CLUSTER_IDS: Tuple[int, ...] = (-1, 0, 1)
+    CULL_CLUSTER_IDS: Tuple[int, ...] = (-1, 0)
+    CLASS_LABELS: Tuple[int, ...] = (2, 6)
     OUTPUT_DIR: Optional[str] = None
     COLORMAP: str = "RdBu"
     TRUST_LABELS: bool = False
@@ -169,7 +170,13 @@ def get_args() -> argparse.Namespace:
         "--cull_cluster_ids",
         type=str,
         default=",".join(map(str, VcdRunConfig.CULL_CLUSTER_IDS)),
-        help="Coma separated list of cluster IDs to cull when producing the meshes",
+        help="Comma separated list of cluster IDs to cull when producing the meshes",
+    )
+    ap.add_argument(
+        "--class_labels",
+        type=str,
+        default=",".join(map(str, VcdRunConfig.CLASS_LABELS)),
+        help="Comma separated list of classification labels to use when producing the meshes",
     )
     ap.add_argument(
         "-v", "--verbose", action="count", default=0, help="turn on verbose logging"
@@ -217,6 +224,7 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         MIN_POINTS=int(args.min_points),
         CLUSTER_TOLERANCE=float(args.cluster_tolerance),
         CULL_CLUSTER_IDS=tuple(map(int, args.cull_cluster_ids.split(","))),
+        CLASS_LABELS=tuple(map(int, args.class_labels.split(","))),
         TRUST_LABELS=args.trust_labels,
         COMPUTE_HAG=args.compute_hag,
     )

@@ -37,6 +37,7 @@ class VCDParameters(TypedDict):
     MIN_POINTS: int
     CLUSTER_TOLERANCE: float
     CULL_CLUSTER_IDS: Tuple[int, ...]
+    CLASS_LABELS: Tuple[int, ...]
     COLORMAP: str
     TRUST_LABELS: bool
     COMPUTE_HAG: bool
@@ -221,8 +222,8 @@ class VCD:
 
         thresholdFilter = pdal.Filter.range(limits="dZ3d![-{gh}:{gh}]".format(gh=gh))
 
-        conditions = [f"Classification=={id}" for id in self.after.config["CULL_CLUSTER_IDS"]]
-        expression =" || ".join(conditions)
+        conditions = [f"Classification=={id}" for id in self.after.config["CLASS_LABELS"]]
+        expression = " || ".join(conditions)
         rangeFilter = pdal.Filter.expression(expression=expression)
 
         clusterFilter = pdal.Filter.cluster(
@@ -230,8 +231,12 @@ class VCD:
             tolerance=self.after.config["CLUSTER_TOLERANCE"],
         )
 
+        conditions = [f"ClusterID!={id}" for id in self.after.config["CULL_CLUSTER_IDS"]]
+        expression = " && ".join(conditions)
+        clusterIdFilter = pdal.Filter.expression(expression=expression)
+
         array = after.to_records()
-        self.clusters = pdal.Pipeline([thresholdFilter, rangeFilter, clusterFilter], [array])
+        self.clusters = pdal.Pipeline([thresholdFilter, rangeFilter, clusterFilter, clusterIdFilter], [array])
         self.clusters.execute()
         cluster_df = pd.DataFrame(self.clusters.arrays[0])
 
