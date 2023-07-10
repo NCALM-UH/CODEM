@@ -414,13 +414,12 @@ class DSM(GeoData):
             self.nodata = data.nodata
             self.crs = data.crs
 
-            # not any() == all(not, not, not)
-            if not any(
+            if all(
                 (
-                    self.fnd,  # the dataset is the compliment
+                    not self.fnd,  # the dataset is the compliment
                     (
                         self.crs is not None
-                        and self.crs.is_projected  # the CRS is not projected
+                        and not self.crs.is_projected  # the CRS is not projected
                     ),
                 ),
             ):
@@ -432,7 +431,6 @@ class DSM(GeoData):
                     self.dsm.shape[1],
                     *data.bounds,
                 )
-
                 dsm = np.zeros((width, height), dtype=self.dsm.dtype)
                 _, transform = rasterio.warp.reproject(
                     source=rasterio.band(data, 1),
