@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import warnings
 from typing import Any
 from typing import Dict
 from typing import Tuple
@@ -75,17 +76,24 @@ class IcpRegistration:
         self.residual_origins: np.ndarray = np.empty((0, 0), np.double)
         self.residual_vectors: np.ndarray = np.empty((0, 0), np.double)
 
-        assert (
-            self.fixed.shape[1] == 3
-            and self.moving.shape[1] == 3
-            and self.normals.shape[1] == 3
-        ), "Point and normal vector data must be 3D."
-        assert (
-            self.fixed.shape[0] >= 7 and self.moving.shape[0] >= 7
-        ), "At least 7 points required for the point to plane ICP algorithm."
-        assert (
-            self.normals.shape == self.fixed.shape
-        ), "Normal vector array must be same size as fixed points array."
+        if not all(
+            [
+                self.fixed.shape[1] == 3,
+                self.moving.shape[1] == 3,
+                self.normals.shape[1] == 3,
+            ]
+        ):
+            raise ValueError("Point and Normal Vector Must be 3D")
+
+        if self.fixed.shape[0] < 7 or self.moving.shape[0] < 7:
+            raise ValueError(
+                "At least 7 points required for hte point to plane ICP algorithm."
+            )
+
+        if self.normals.shape != self.fixed.shape:
+            raise ValueError(
+                "Normal vector array must be same size as fixed points array."
+            )
 
     def register(self) -> None:
         """
@@ -131,9 +139,10 @@ class IcpRegistration:
             temp_normals = self.normals[include_fixed]
             temp_moving_transformed = moving_transformed[include_moving]
 
-            assert (
-                temp_fixed.shape[0] >= 7
-            ), "At least 7 points within the ICP outlier threshold are required."
+            if temp_fixed.shape[0] < 7:
+                raise RuntimeError(
+                    "At least 7 points within the ICP outlier threshold are required."
+                )
 
             weights = self._get_weights(
                 temp_fixed, temp_normals, temp_moving_transformed, alpha, beta
@@ -191,9 +200,15 @@ class IcpRegistration:
 
         T = icp_transform @ self.initial_transform
         c = np.sqrt(T[0, 0] ** 2 + T[1, 0] ** 2 + T[2, 0] ** 2)
-        assert (
-            c > 0.67 and c < 1.5
-        ), "Solved scale difference between foundation and AOI data exceeds 50%."
+        if c < 0.67 or c > 1.5:
+            warnings.warn(
+                (
+                    "Coarse regsistration solved scale between datasets exceeds 50%. "
+                    "Registration is likely to fail"
+                ),
+                category=RuntimeWarning,
+                stacklevel=2,
+            )
         if self.config["ICP_SAVE_RESIDUALS"]:
             self.residual_origins = self._apply_transform(self.moving, T)
             self.residual_vectors = self._residuals(
@@ -285,7 +300,10 @@ class IcpRegistration:
         transformed_points: np.array
             Array of transformed 3D points
         """
-        assert transform.shape == (4, 4), "Transformation matrix is an invalid shape"
+        if transform.shape != (4, 4):
+            raise ValueError(
+                f"Transformation matrix is an invalid shape: {transform.shape}"
+            )
         points = np.hstack((points, np.ones((points.shape[0], 1))))
         transformed_points: np.ndarray = np.transpose(transform @ points.T)[:, 0:3]
         return transformed_points

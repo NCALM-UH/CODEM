@@ -210,7 +210,8 @@ class GeoData:
         else:
             empty_array = np.empty_like(dsm_array)
 
-        assert not np.array_equal(dsm_array, empty_array), "DSM array is empty."
+        if np.array_equal(dsm_array, empty_array):
+            raise ValueError("DSM array is empty.")
 
         infilled = np.copy(self.dsm)
         mask = self._get_nodata_mask(infilled)
