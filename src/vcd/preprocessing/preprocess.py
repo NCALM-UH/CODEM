@@ -170,7 +170,7 @@ class PointCloud:
 
         else:
             filters |= pdal.Filter.returns(groups="only")
-        
+
         filters.execute()
         self.pipeline = filters
         return filters
@@ -192,10 +192,10 @@ class VCD:
 
         # Compute height as delta Z between nearest point in before cloud from the after cloud -- original workflow.
         if not self.before.config["COMPUTE_HAG"]:
-            tree3d = cKDTree(before[["X", "Y", "Z"]])
-            _, i3d = tree3d.query(after[["X", "Y", "Z"]], k=1)
+            tree3d = cKDTree(before[["X", "Y", "Z"]].to_numpy())
+            _, i3d = tree3d.query(after[["X", "Y", "Z"]].to_numpy(), k=1)
             after["dZ3d"] = after.Z - before.iloc[i3d].Z.values
-        
+
         # Compute height as HAG, treating after as non-ground and before as ground -- new workflow.
         else:
             # Assing after non-ground, before ground.
@@ -207,7 +207,9 @@ class VCD:
 
             # Stash original classifications, then compute HAG using TempClassification. Pop the original classifications.
             pipeline = pdal.Pipeline(dataframes=[allpoints])
-            pipeline |= pdal.Filter.ferry(dimensions="TempClassification=>Classification")
+            pipeline |= pdal.Filter.ferry(
+                dimensions="TempClassification=>Classification"
+            )
             pipeline |= pdal.Filter.hag_delaunay()
             pipeline.execute()
 
@@ -215,14 +217,15 @@ class VCD:
             result = pipeline.get_dataframe(0)
             after["dZ3d"] = result["HeightAboveGround"]
 
-
     def cluster(self) -> None:
         after = self.after.df
         gh = self.gh
 
         thresholdFilter = pdal.Filter.range(limits="dZ3d![-{gh}:{gh}]".format(gh=gh))
 
-        conditions = [f"Classification=={id}" for id in self.after.config["CLASS_LABELS"]]
+        conditions = [
+            f"Classification=={id}" for id in self.after.config["CLASS_LABELS"]
+        ]
         expression = " || ".join(conditions)
         rangeFilter = pdal.Filter.expression(expression=expression)
 
@@ -231,17 +234,23 @@ class VCD:
             tolerance=self.after.config["CLUSTER_TOLERANCE"],
         )
 
-        conditions = [f"ClusterID!={id}" for id in self.after.config["CULL_CLUSTER_IDS"]]
+        conditions = [
+            f"ClusterID!={id}" for id in self.after.config["CULL_CLUSTER_IDS"]
+        ]
         expression = " && ".join(conditions)
         clusterIdFilter = pdal.Filter.expression(expression=expression)
 
         array = after.to_records()
-        self.clusters = pdal.Pipeline([thresholdFilter, rangeFilter, clusterFilter, clusterIdFilter], [array])
+        self.clusters = pdal.Pipeline(
+            [thresholdFilter, rangeFilter, clusterFilter, clusterIdFilter], [array]
+        )
         self.clusters.execute()
         cluster_df = pd.DataFrame(self.clusters.arrays[0])
 
         # Encode the size of each cluster as a new dimension for analysis.
-        cluster_df['ClusterSize'] = cluster_df.groupby(['ClusterID'])['ClusterID'].transform('count')
+        cluster_df["ClusterSize"] = cluster_df.groupby(["ClusterID"])[
+            "ClusterID"
+        ].transform("count")
         self.cluster_sizes = cluster_df["ClusterSize"].to_numpy()
 
         p = self.make_product(
@@ -344,7 +353,9 @@ class VCD:
         )[0, :, :-1]
 
         array = rfn.append_fields(
-            array, ["Red", "Green", "Blue", "ClusterSize"], [rgb[:, 0], rgb[:, 1], rgb[:, 2], sizes]
+            array,
+            ["Red", "Green", "Blue", "ClusterSize"],
+            [rgb[:, 0], rgb[:, 1], rgb[:, 2], sizes],
         )
 
         crs = self.after.crs
