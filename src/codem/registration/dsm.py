@@ -18,6 +18,7 @@ This module contains the following classes:
 import logging
 import math
 import os
+import warnings
 from typing import Any
 from typing import Dict
 from typing import List
@@ -251,13 +252,21 @@ class DsmRegistration:
                 "DSM_RANSAC_THRESHOLD or DSM_RANSAC_MAX_ITER"
             )
         self.logger.info(f"{np.sum(inliers)} keypoint matches found.")
-        assert np.sum(inliers) >= 4, "Less than four keypoint matches found."
+
+        if np.sum(inliers) < 4:
+            raise RuntimeError("Less than 4 keypoint matches found.")
 
         T: np.ndarray = model.transform
         c = np.linalg.norm(T[:, 0])
-        assert (
-            c > 0.67 and c < 1.5
-        ), "Solved scale difference between foundation and AOI data exceeds 50%"
+        if c < 0.67 or c > 1.5:
+            warnings.warn(
+                (
+                    "Coarse regsistration solved scale between datasets exceeds 50%. "
+                    "Registration is likely to fail"
+                ),
+                category=RuntimeWarning,
+                stacklevel=2,
+            )
 
         self.transformation = T
         self.inliers = inliers
