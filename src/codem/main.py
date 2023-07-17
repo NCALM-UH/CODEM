@@ -24,6 +24,7 @@ from typing import Tuple
 from typing import Union
 
 import yaml
+from codem import __version__
 from codem.lib.log import Log
 from codem.preprocessing.preprocess import clip_data
 from codem.preprocessing.preprocess import GeoData
@@ -302,6 +303,12 @@ def get_args() -> argparse.Namespace:
             "Limits the registration search to the region of overlap. Both datasets "
             "must have the same CRS defined."
         ),
+    )
+    ap.add_argument(
+        "--version",
+        action="version",
+        version=f"{__version__}",
+        help="Display codem version information",
     )
     return ap.parse_args()
 

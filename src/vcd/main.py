@@ -14,6 +14,7 @@ from typing import Tuple
 from typing import Union
 
 import yaml
+from codem import __version__
 from codem.lib.log import Log
 from distutils.util import strtobool
 from vcd.meshing.mesh import Mesh
@@ -208,6 +209,12 @@ def get_args() -> argparse.Namespace:
             "Compute height above ground between after scan (non-ground) and before "
             "scan (ground), otherwise compute to nearest neighbor from after to before."
         ),
+    )
+    ap.add_argument(
+        "--version",
+        action="version",
+        version=f"{__version__}",
+        help="Display codem version information",
     )
     args = ap.parse_args()
     return args
