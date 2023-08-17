@@ -305,6 +305,12 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
+        "--output_dir",
+        "-o",
+        type=str,
+        help="Directory to place registered output."
+    )
+    ap.add_argument(
         "--version",
         action="version",
         version=f"{__version__}",
@@ -334,6 +340,7 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         VERBOSE=args.verbose,
         ICP_SAVE_RESIDUALS=args.icp_save_residuals,
         TIGHT_SEARCH=args.tight_search,
+        OUTPUT_DIR=args.output_dir
     )
     return dataclasses.asdict(config)
 
@@ -358,22 +365,21 @@ def run_console(
     ) as progress:
         registration = progress.add_task("Registration...", total=100)
 
-        # characters are problematic on a windows console
-        console.print("╔════════════════════════════════════╗", justify="center")
-        console.print("║               CODEM                ║", justify="center")
-        console.print("╚════════════════════════════════════╝", justify="center")
-        console.print("║     AUTHORS: Preston Hartzell  &   ║", justify="center")
-        console.print("║     Jesse Shanahan                 ║", justify="center")
-        console.print("║     DEVELOPED FOR: CRREL/NEGGS     ║", justify="center")
-        console.print("╚════════════════════════════════════╝", justify="center")
+        console.print("/************************************\\", justify="center")
+        console.print("*               CODEM                *", justify="center")
+        console.print("**************************************", justify="center")
+        console.print("*     AUTHORS: Preston Hartzell  &   *", justify="center")
+        console.print("*     Jesse Shanahan                 *", justify="center")
+        console.print("*     DEVELOPED FOR: CRREL/NEGGS     *", justify="center")
+        console.print("\\************************************/", justify="center")
         console.print()
-        console.print("══════════════PARAMETERS══════════════", justify="center")
+        console.print("===========PARAMETERS===========", justify="center")
         for key in config:
             logger.info(f"{key} = {config[key]}")
         progress.advance(registration, 1)
 
-        console.print("══════════PREPROCESSING DATA══════════", justify="center")
-        # status.update(stage="Preprocessing Inputs", force=True)
+        console.print("===========PREPROCESSING DATA===========", justify="center")
+        status.update(stage="Preprocessing Inputs", force=True)
         fnd_obj, aoi_obj = preprocess(config)
         clip_data(fnd_obj, aoi_obj, config)
         progress.advance(registration, 7)
@@ -385,18 +391,18 @@ def run_console(
             f"Registration resolution has been set to: {fnd_obj.resolution} meters"
         )
 
-        console.print("═════BEGINNING COARSE REGISTRATION═════", justify="center")
-        # status.update(stage="Performing Coarse Registration", force=True)
+        console.print("===========BEGINNING COARSE REGISTRATION===========", justify="center")
+        status.update(stage="Performing Coarse Registration", force=True)
 
         dsm_reg = coarse_registration(fnd_obj, aoi_obj, config)
         progress.advance(registration, 22)
 
-        console.print("══════BEGINNING FINE REGISTRATION══════", justify="center")
-        # status.update(stage="Performing Fine Registration", force=True)
+        console.print("===========BEGINNING FINE REGISTRATION===========", justify="center")
+        status.update(stage="Performing Fine Registration", force=True)
         icp_reg = fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
         progress.advance(registration, 16)
 
-        console.print("═════════APPLYING REGISTRATION═════════", justify="center")
+        console.print("===========APPLYING REGISTRATION===========", justify="center")
         apply_registration(fnd_obj, aoi_obj, icp_reg, config)
         progress.advance(registration, 5)
 
