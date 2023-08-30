@@ -24,6 +24,7 @@ This module contains the following classes and methods:
 * Mesh - class for Mesh data
 * instantiate - method for auto-instantiating the appropriate class
 """
+import asyncio
 import json
 import logging
 import math
@@ -43,6 +44,7 @@ import rasterio.fill
 import rasterio.transform
 import rasterio.warp
 import trimesh
+from codem.lib.log import Log
 from rasterio import windows
 from rasterio.coords import BoundingBox
 from rasterio.coords import disjoint_bounds
@@ -50,6 +52,31 @@ from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.errors import CRSError
 from typing_extensions import TypedDict
+
+
+class CodemParameters(TypedDict):
+    FND_FILE: str
+    AOI_FILE: str
+    MIN_RESOLUTION: float
+    DSM_AKAZE_THRESHOLD: float
+    DSM_LOWES_RATIO: float
+    DSM_RANSAC_MAX_ITER: int
+    DSM_RANSAC_THRESHOLD: float
+    DSM_SOLVE_SCALE: bool
+    DSM_STRONG_FILTER: float
+    DSM_WEAK_FILTER: float
+    ICP_ANGLE_THRESHOLD: float
+    ICP_DISTANCE_THRESHOLD: float
+    ICP_MAX_ITER: int
+    ICP_RMSE_THRESHOLD: float
+    ICP_ROBUST: bool
+    ICP_SOLVE_SCALE: bool
+    VERBOSE: bool
+    ICP_SAVE_RESIDUALS: bool
+    OUTPUT_DIR: str
+    TIGHT_SEARCH: bool
+    LOG_TYPE: str
+    log: Log
 
 
 class RegistrationParameters(TypedDict):
@@ -93,7 +120,7 @@ class GeoData:
     prep
     """
 
-    def __init__(self, config: dict, fnd: bool) -> None:
+    def __init__(self, config: CodemParameters, fnd: bool) -> None:
         self.logger = logging.getLogger(__name__)
         self.file = config["FND_FILE"] if fnd else config["AOI_FILE"]
         self.fnd = fnd
@@ -355,7 +382,7 @@ class DSM(GeoData):
     A class for storing and preparing Digital Surface Model (DSM) data.
     """
 
-    def __init__(self, config: dict, fnd: bool) -> None:
+    def __init__(self, config: CodemParameters, fnd: bool) -> None:
         super().__init__(config, fnd)
         self.type = "dsm"
         self._calculate_resolution()
@@ -573,7 +600,7 @@ class PointCloud(GeoData):
     A class for storing and preparing Point Cloud data.
     """
 
-    def __init__(self, config: dict, fnd: bool) -> None:
+    def __init__(self, config: CodemParameters, fnd: bool) -> None:
         super().__init__(config, fnd)
         self.type = "pcloud"
         self._calculate_resolution()
@@ -666,7 +693,7 @@ class Mesh(GeoData):
     A class for storing and preparing Mesh data.
     """
 
-    def __init__(self, config: dict, fnd: bool) -> None:
+    def __init__(self, config: CodemParameters, fnd: bool) -> None:
         super().__init__(config, fnd)
         self.type = "mesh"
         self._calculate_resolution()
@@ -762,7 +789,7 @@ class Mesh(GeoData):
         self.native_resolution = spacing
 
 
-def instantiate(config: dict, fnd: bool) -> GeoData:
+def instantiate(config: CodemParameters, fnd: bool) -> GeoData:
     """
     Factory method for auto-instantiating the appropriate data class.
 
@@ -789,7 +816,7 @@ def instantiate(config: dict, fnd: bool) -> GeoData:
     raise NotImplementedError("File type not currently supported.")
 
 
-def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]) -> None:
+def clip_data(fnd_obj: GeoData, aoi_obj: GeoData, config: CodemParameters) -> None:
     # how much outside of the bounds to search for registration features
     oversize_scale = 1.5
 

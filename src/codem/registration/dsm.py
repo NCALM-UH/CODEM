@@ -19,13 +19,12 @@ import logging
 import math
 import os
 import warnings
-from typing import Any
-from typing import Dict
 from typing import List
 from typing import Tuple
 
 import cv2
 import numpy as np
+from codem.preprocessing.preprocess import CodemParameters
 from codem.preprocessing.preprocess import GeoData
 from codem.preprocessing.preprocess import RegistrationParameters
 from rasterio import Affine
@@ -43,7 +42,7 @@ class DsmRegistration:
         the foundation DSM
     aoi_obj: DSM object
         the area of interest DSM
-    config: Dictionary
+    config: CodemParameters
         dictionary of configuration parameters
 
     Methods
@@ -59,7 +58,7 @@ class DsmRegistration:
     """
 
     def __init__(
-        self, fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]
+        self, fnd_obj: GeoData, aoi_obj: GeoData, config: CodemParameters
     ) -> None:
         self.logger = logging.getLogger(__name__)
         self.config = config

@@ -22,6 +22,7 @@ from typing import Tuple
 from typing import TYPE_CHECKING
 
 import numpy as np
+from codem.preprocessing.preprocess import CodemParameters
 from codem.preprocessing.preprocess import GeoData
 from codem.preprocessing.preprocess import RegistrationParameters
 from scipy import spatial
@@ -63,7 +64,7 @@ class IcpRegistration:
         fnd_obj: GeoData,
         aoi_obj: GeoData,
         dsm_reg: DsmRegistration,
-        config: Dict[str, Any],
+        config: CodemParameters,
     ) -> None:
         self.logger = logging.getLogger(__name__)
         self.fixed = fnd_obj.point_cloud

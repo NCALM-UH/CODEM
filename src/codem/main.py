@@ -11,22 +11,22 @@ the relevant run directory within outputs/.
 """
 import argparse
 import dataclasses
-import logging
 import math
 import os
 import time
 import warnings
+from contextlib import ContextDecorator
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import Union
 
 import yaml
 from codem import __version__
 from codem.lib.log import Log
 from codem.preprocessing.preprocess import clip_data
+from codem.preprocessing.preprocess import CodemParameters
 from codem.preprocessing.preprocess import GeoData
 from codem.preprocessing.preprocess import instantiate
 from codem.registration import ApplyRegistration
@@ -34,48 +34,26 @@ from codem.registration import DsmRegistration
 from codem.registration import IcpRegistration
 from distutils.util import strtobool
 
-try:
-    import rich
-except ImportError:
-    _has_rich = False
-    from contextlib import ContextDecorator
 
-    class Progress(ContextDecorator):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__()
+class DummyProgress(ContextDecorator):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__()
 
-        def __enter__(self, *args: Any, **kwargs: Any) -> Any:
-            return self
+    def __enter__(self, *args: Any, **kwargs: Any) -> Any:
+        return self
 
-        def __exit__(self, *args: Any, **kwargs: Any) -> None:
-            pass
+    def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        pass
 
-        def add_task(self, *args: Any, **kwargs: Any) -> None:
-            pass
+    def add_task(self, *args: Any, **kwargs: Any) -> None:
+        pass
 
-        def advance(self, *args: Any, **kwargs: Any) -> None:
-            pass
+    def advance(self, *args: Any, **kwargs: Any) -> None:
+        pass
 
-        @staticmethod
-        def get_default_columns() -> List:
-            return []
-
-    class Dummy:
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            self.level = float("-inf")
-
-        def print(self, *args: Any, **kwargs: Any) -> None:
-            print(*args)
-
-    Console = Dummy  # type: ignore
-    SpinnerColumn = TimeElapsedColumn = object  # type: ignore
-else:
-    _has_rich = True
-    from rich.console import Console  # type: ignore
-    from rich.logging import RichHandler  # type: ignore
-    from rich.progress import Progress  # type: ignore
-    from rich.progress import SpinnerColumn  # type: ignore
-    from rich.progress import TimeElapsedColumn  # type: ignore
+    @staticmethod
+    def get_default_columns() -> List:
+        return []
 
 
 @dataclasses.dataclass
@@ -100,6 +78,7 @@ class CodemRunConfig:
     ICP_SAVE_RESIDUALS: bool = False
     OUTPUT_DIR: Optional[str] = None
     TIGHT_SEARCH: bool = False
+    LOG_TYPE: str = "rich"
 
     def __post_init__(self) -> None:
         # set output directory
@@ -305,10 +284,7 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
-        "--output_dir",
-        "-o",
-        type=str,
-        help="Directory to place registered output."
+        "--output_dir", "-o", type=str, help="Directory to place registered output."
     )
     ap.add_argument(
         "--version",
@@ -316,10 +292,17 @@ def get_args() -> argparse.Namespace:
         version=f"{__version__}",
         help="Display codem version information",
     )
+    ap.add_argument(
+        "--log_type",
+        "-l",
+        type=str,
+        default=CodemRunConfig.LOG_TYPE,
+        help="Specify how to log codem output, options include websocket, rich or console",
+    )
     return ap.parse_args()
 
 
-def create_config(args: argparse.Namespace) -> Dict[str, Any]:
+def create_config(args: argparse.Namespace) -> CodemParameters:
     config = CodemRunConfig(
         os.fsdecode(os.path.abspath(args.foundation_file)),
         os.fsdecode(os.path.abspath(args.aoi_file)),
@@ -340,22 +323,33 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         VERBOSE=args.verbose,
         ICP_SAVE_RESIDUALS=args.icp_save_residuals,
         TIGHT_SEARCH=args.tight_search,
-        OUTPUT_DIR=args.output_dir
+        OUTPUT_DIR=args.output_dir,
+        LOG_TYPE=args.log_type,
     )
-    return dataclasses.asdict(config)
+    config_dict = dataclasses.asdict(config)
+    config_dict["log"] = Log(config_dict)
+
+    return config_dict  # type: ignore
 
 
-def run_console(
-    config: Dict[str, Any], logger: logging.Logger, console: Console
+def run_rich_console(
+    config: CodemParameters,
 ) -> None:
     """
     Preprocess and register the provided data
 
     Parameters
     ----------
-    config: dict
+    config
         Dictionary of configuration parameters
     """
+    from rich.console import Console  # type: ignore
+    from rich.progress import Progress  # type: ignore
+    from rich.progress import SpinnerColumn  # type: ignore
+    from rich.progress import TimeElapsedColumn  # type: ignore
+
+    console = Console()
+    logger = config["log"].logger
 
     with Progress(
         SpinnerColumn(),
@@ -374,12 +368,11 @@ def run_console(
         console.print("\\************************************/", justify="center")
         console.print()
         console.print("===========PARAMETERS===========", justify="center")
-        for key in config:
-            logger.info(f"{key} = {config[key]}")
+        for key, value in config.items():
+            logger.info(f"{key} = {value}")
         progress.advance(registration, 1)
 
         console.print("===========PREPROCESSING DATA===========", justify="center")
-        status.update(stage="Preprocessing Inputs", force=True)
         fnd_obj, aoi_obj = preprocess(config)
         clip_data(fnd_obj, aoi_obj, config)
         progress.advance(registration, 7)
@@ -391,14 +384,15 @@ def run_console(
             f"Registration resolution has been set to: {fnd_obj.resolution} meters"
         )
 
-        console.print("===========BEGINNING COARSE REGISTRATION===========", justify="center")
-        status.update(stage="Performing Coarse Registration", force=True)
-
+        console.print(
+            "===========BEGINNING COARSE REGISTRATION===========", justify="center"
+        )
         dsm_reg = coarse_registration(fnd_obj, aoi_obj, config)
         progress.advance(registration, 22)
 
-        console.print("===========BEGINNING FINE REGISTRATION===========", justify="center")
-        status.update(stage="Performing Fine Registration", force=True)
+        console.print(
+            "===========BEGINNING FINE REGISTRATION===========", justify="center"
+        )
         icp_reg = fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
         progress.advance(registration, 16)
 
@@ -407,7 +401,94 @@ def run_console(
         progress.advance(registration, 5)
 
 
-def preprocess(config: Dict[str, Any]) -> Tuple[GeoData, GeoData]:
+def run_stdout_console(config: CodemParameters) -> None:
+    """
+    Preprocess and register the provided data
+
+    Parameters
+    ----------
+    config: dict
+        Dictionary of configuration parameters
+    """
+
+    # registration = progress.add_task("Registration...", total=100)
+
+    logger = config["log"].logger
+
+    print("/************************************\\")
+    print("*               CODEM                *")
+    print("**************************************")
+    print("*     AUTHORS: Preston Hartzell  &   *")
+    print("*     Jesse Shanahan                 *")
+    print("*     DEVELOPED FOR: CRREL/NEGGS     *")
+    print("\\************************************/")
+    print()
+    print("===========PARAMETERS===========")
+    for key, value in config.items():
+        logger.info(f"{key} = {value}")
+
+    print("===========PREPROCESSING DATA===========")
+    fnd_obj, aoi_obj = preprocess(config)
+    clip_data(fnd_obj, aoi_obj, config)
+    fnd_obj.prep()
+    aoi_obj.prep()
+    logger.info(f"Registration resolution has been set to: {fnd_obj.resolution} meters")
+
+    print("===========BEGINNING COARSE REGISTRATION===========")
+    dsm_reg = coarse_registration(fnd_obj, aoi_obj, config)
+
+    print("===========BEGINNING FINE REGISTRATION===========")
+    icp_reg = fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
+
+    print("===========APPLYING REGISTRATION===========")
+    apply_registration(fnd_obj, aoi_obj, icp_reg, config)
+
+
+def run_no_console(
+    config: CodemParameters,
+) -> None:
+    """
+    Preprocess and register the provided data
+
+    Parameters
+    ----------
+    config: dict
+        Dictionary of configuration parameters
+    """
+
+    from codem.lib.progress import WebSocketProgress
+
+    logger = config["log"].logger
+
+    with WebSocketProgress() as progress:
+        registration = progress.add_task("Registration...", total=100)
+
+        for key, value in config.items():
+            logger.info(f"{key} = {value}")
+        progress.advance(registration, 1)
+
+        fnd_obj, aoi_obj = preprocess(config)
+        clip_data(fnd_obj, aoi_obj, config)
+        progress.advance(registration, 7)
+        fnd_obj.prep()
+        progress.advance(registration, 45)
+        aoi_obj.prep()
+        progress.advance(registration, 4)
+        logger.info(
+            f"Registration resolution has been set to: {fnd_obj.resolution} meters"
+        )
+
+        dsm_reg = coarse_registration(fnd_obj, aoi_obj, config)
+        progress.advance(registration, 22)
+
+        icp_reg = fine_registration(fnd_obj, aoi_obj, dsm_reg, config)
+        progress.advance(registration, 16)
+
+        apply_registration(fnd_obj, aoi_obj, icp_reg, config)
+        progress.advance(registration, 5)
+
+
+def preprocess(config: CodemParameters) -> Tuple[GeoData, GeoData]:
     fnd_obj = instantiate(config, fnd=True)
     aoi_obj = instantiate(config, fnd=False)
     if not math.isnan(config["MIN_RESOLUTION"]):
@@ -432,7 +513,7 @@ def preprocess(config: Dict[str, Any]) -> Tuple[GeoData, GeoData]:
 
 
 def coarse_registration(
-    fnd_obj: GeoData, aoi_obj: GeoData, config: Dict[str, Any]
+    fnd_obj: GeoData, aoi_obj: GeoData, config: CodemParameters
 ) -> DsmRegistration:
     dsm_reg = DsmRegistration(fnd_obj, aoi_obj, config)
     dsm_reg.register()
@@ -440,7 +521,10 @@ def coarse_registration(
 
 
 def fine_registration(
-    fnd_obj: GeoData, aoi_obj: GeoData, dsm_reg: DsmRegistration, config: Dict[str, Any]
+    fnd_obj: GeoData,
+    aoi_obj: GeoData,
+    dsm_reg: DsmRegistration,
+    config: CodemParameters,
 ) -> IcpRegistration:
     icp_reg = IcpRegistration(fnd_obj, aoi_obj, dsm_reg, config)
     icp_reg.register()
@@ -451,7 +535,7 @@ def apply_registration(
     fnd_obj: GeoData,
     aoi_obj: GeoData,
     icp_reg: IcpRegistration,
-    config: Dict[str, Any],
+    config: CodemParameters,
     output_format: Optional[str] = None,
 ) -> str:
     app_reg = ApplyRegistration(
@@ -470,19 +554,13 @@ def apply_registration(
 def main() -> None:
     args = get_args()
     config = create_config(args)
-    console = Console()
 
-    log_handler: Union[rich.logging.RichHandler, logging.StreamHandler]
-    if _has_rich:
-        log_handler = rich.logging.RichHandler(
-            level="DEBUG", console=console, markup=False
-        )
+    if config["LOG_TYPE"] == "rich":
+        run_rich_console(config)
+    elif config["LOG_TYPE"] == "websockets":
+        run_no_console(config)
     else:
-        log_handler = logging.StreamHandler()
-        log_handler.setLevel(logging.DEBUG)
-    codem_logger = Log(config)
-    codem_logger.logger.addHandler(log_handler)
-    run_console(config, codem_logger.logger, console)
+        run_stdout_console(config)
 
 
 if __name__ == "__main__":

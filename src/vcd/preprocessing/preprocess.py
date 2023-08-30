@@ -41,6 +41,7 @@ class VCDParameters(TypedDict):
     COLORMAP: str
     TRUST_LABELS: bool
     COMPUTE_HAG: bool
+    LOG_TYPE: str
     log: Log
 
 
