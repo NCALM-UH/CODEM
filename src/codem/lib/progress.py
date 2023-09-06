@@ -18,7 +18,7 @@ else:
             self.current: Dict[str, int] = {}
 
         def __enter__(self) -> Any:
-            self.ws.connect("ws://127.0.0.1:8888/websocket")
+            self.ws.connect("ws://127.0.0.1:8889/websocket")
             return self
 
         def __exit__(self, *args: Any, **kwargs: Any) -> None:

@@ -13,6 +13,7 @@ import argparse
 import dataclasses
 import math
 import os
+import sys
 import time
 import warnings
 from contextlib import ContextDecorator
@@ -297,7 +298,7 @@ def get_args() -> argparse.Namespace:
         "-l",
         type=str,
         default=CodemRunConfig.LOG_TYPE,
-        help="Specify how to log codem output, options include websocket, rich or console",
+        help="Specify how to log codem output, options include websockets, rich or console",
     )
     return ap.parse_args()
 
@@ -557,11 +558,11 @@ def main() -> None:
 
     if config["LOG_TYPE"] == "rich":
         run_rich_console(config)
-    elif config["LOG_TYPE"] == "websockets":
+    elif config["LOG_TYPE"] == "websocket":
         run_no_console(config)
+        config["log"].logger.info("run no console has finished")
     else:
         run_stdout_console(config)
-
 
 if __name__ == "__main__":
     main()

@@ -10,6 +10,7 @@ import os
 from typing import Any
 from typing import Dict
 from typing import TYPE_CHECKING
+
 from typing import Union
 
 if TYPE_CHECKING:
@@ -23,7 +24,7 @@ except ImportError:
     pass
 else:
 
-    class JsonFormatter(jsonlogger.JsonFormatter):
+    class CustomJsonFormatter(jsonlogger.JsonFormatter):
         def add_fields(
             self,
             log_record: Dict[str, Any],
@@ -88,12 +89,11 @@ class Log:
         # Supplemental Handler
         if config["LOG_TYPE"] == "rich":
             from rich.logging import RichHandler
-
             log_handler = RichHandler()
-        elif config["LOG_TYPE"] == "websockets":
-            formatter = JsonFormatter()
+        elif config["LOG_TYPE"] == "websocket":
+            formatter = CustomJsonFormatter()
             self.relay = websocket.WebSocket()
-            self.relay.connect("ws://localhost:8888/websocket")
+            self.relay.connect("ws://127.0.0.1:8889/websocket")
             log_handler = WebSocketHandler("DEBUG", websocket=self.relay)
             log_handler.setFormatter(formatter)
         else:

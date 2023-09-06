@@ -5,9 +5,6 @@ import argparse
 import dataclasses
 import os
 import time
-from typing import Any
-from typing import Dict
-from typing import Optional
 from typing import Tuple
 
 import yaml
@@ -181,8 +178,7 @@ def get_args() -> argparse.Namespace:
         default=VcdRunConfig.LOG_TYPE,
         help="Specify how to log codem output, options include websocket, rich or console",
     )
-    args = ap.parse_args()
-    return args
+    return ap.parse_args()
 
 
 def create_config(args: argparse.Namespace) -> VCDParameters:
