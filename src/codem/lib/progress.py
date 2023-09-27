@@ -11,14 +11,15 @@ except ImportError:
 else:
 
     class WebSocketProgress(ContextDecorator):
-        def __init__(self) -> None:
+        def __init__(self, url) -> None:
             super().__init__()
             self.ws = websocket.WebSocket()
             self.tasks: Dict[str, int] = {}
             self.current: Dict[str, int] = {}
+            self.url = url
 
         def __enter__(self) -> Any:
-            self.ws.connect("ws://127.0.0.1:8889/websocket")
+            self.ws.connect(f"ws://{self.url}/websocket")
             return self
 
         def __exit__(self, *args: Any, **kwargs: Any) -> None:

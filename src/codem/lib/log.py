@@ -93,10 +93,14 @@ class Log:
         elif config["LOG_TYPE"] == "websocket":
             formatter = CustomJsonFormatter()
             self.relay = websocket.WebSocket()
-            self.relay.connect("ws://127.0.0.1:8889/websocket")
+            self.relay.connect(f'ws://{config["WEBSOCKET_URL"]}/websocket')
             log_handler = WebSocketHandler("DEBUG", websocket=self.relay)
             log_handler.setFormatter(formatter)
         else:
             log_handler = logging.StreamHandler()
         log_handler.setLevel("DEBUG")
         self.logger.addHandler(log_handler)
+
+    def __del__(self):
+        if isinstance(self.logger, WebSocketHandler):
+            self.logger.close()

@@ -80,6 +80,7 @@ class CodemRunConfig:
     OUTPUT_DIR: Optional[str] = None
     TIGHT_SEARCH: bool = False
     LOG_TYPE: str = "rich"
+    WEBSOCKET_URL: str = "127.0.0.1:8889"
 
     def __post_init__(self) -> None:
         # set output directory
@@ -300,6 +301,12 @@ def get_args() -> argparse.Namespace:
         default=CodemRunConfig.LOG_TYPE,
         help="Specify how to log codem output, options include websockets, rich or console",
     )
+    ap.add_argument(
+        "--websocket-url",
+        type=str,
+        default=CodemRunConfig.WEBSOCKET_URL,
+        help="Url to websocket receiver to connect to"
+    )
     return ap.parse_args()
 
 
@@ -461,7 +468,7 @@ def run_no_console(
 
     logger = config["log"].logger
 
-    with WebSocketProgress() as progress:
+    with WebSocketProgress(config["WEBSOCKET_URL"]) as progress:
         registration = progress.add_task("Registration...", total=100)
 
         for key, value in config.items():
