@@ -34,6 +34,8 @@ class VcdRunConfig:
     TRUST_LABELS: bool = False
     COMPUTE_HAG: bool = False
     LOG_TYPE: str = "rich"
+    WEBSOCKET_URL: str = "127.0.0.1:8889"
+
 
     def __post_init__(self) -> None:
         # set output directory
@@ -178,6 +180,12 @@ def get_args() -> argparse.Namespace:
         default=VcdRunConfig.LOG_TYPE,
         help="Specify how to log codem output, options include websocket, rich or console",
     )
+    ap.add_argument(
+        "--websocket-url",
+        type=str,
+        default=VcdRunConfig.WEBSOCKET_URL,
+        help="Url to websocket receiver to connect to"
+    )
     return ap.parse_args()
 
 
@@ -234,12 +242,14 @@ def run_no_console(config: VCDParameters) -> None:
     from codem.lib.progress import WebSocketProgress
 
     logger = config["log"].logger
-    for key, value in config.items():
-        logger.info(f"{key} = {value}")
+    
 
     with WebSocketProgress(config["WEBSOCKET_URL"]) as progress:
         change_detection = progress.add_task("Vertical Change Detection...", total=100)
-
+        
+        for key, value in config.items():
+            logger.info(f"{key} = {value}")
+            
         before = PointCloud(config, "BEFORE")
         progress.advance(change_detection, 14)
 
