@@ -352,7 +352,7 @@ def main() -> None:
     config = create_config(args)
     if config["LOG_TYPE"] == "rich":
         run_rich_console(config)
-    elif config["LOG_TYPE"] == "websockets":
+    elif config["LOG_TYPE"] == "websocket":
         run_no_console(config)
     else:
         run_stdout_console(config)  # type: ignore
