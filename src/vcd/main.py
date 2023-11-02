@@ -34,6 +34,8 @@ class VcdRunConfig:
     TRUST_LABELS: bool = False
     COMPUTE_HAG: bool = False
     LOG_TYPE: str = "rich"
+    WEBSOCKET_URL: str = "127.0.0.1:8889"
+
 
     def __post_init__(self) -> None:
         # set output directory
@@ -108,25 +110,25 @@ def get_args() -> argparse.Namespace:
         help="Raster output resolution",
     )
     ap.add_argument(
-        "--min_points",
+        "--min-points",
         type=int,
         default=VcdRunConfig.MIN_POINTS,
         help="Minimum points to cluster around",
     )
     ap.add_argument(
-        "--cluster_tolerance",
+        "--cluster-tolerance",
         type=float,
         default=VcdRunConfig.CLUSTER_TOLERANCE,
         help="Cluster tolerance used by pdal.Filter.cluster",
     )
     ap.add_argument(
-        "--cull_cluster_ids",
+        "--cull-cluster-ids",
         type=str,
         default=",".join(map(str, VcdRunConfig.CULL_CLUSTER_IDS)),
         help="Comma separated list of cluster IDs to cull when producing the meshes",
     )
     ap.add_argument(
-        "--class_labels",
+        "--class-labels",
         type=str,
         default=",".join(map(str, VcdRunConfig.CLASS_LABELS)),
         help="Comma separated list of classification labels to use when producing the meshes",
@@ -146,7 +148,7 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
-        "--trust_labels",
+        "--trust-labels",
         action="store_true",
         help=(
             "Trusts existing classification labels in the removal of vegetation/noise, "
@@ -155,7 +157,7 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
-        "--compute_hag",
+        "--compute-hag",
         action="store_true",
         help=(
             "Compute height above ground between after scan (non-ground) and before "
@@ -163,7 +165,7 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
-        "--output_dir", "-o", type=str, help="Directory to place VCD output"
+        "--output-dir", "-o", type=str, help="Directory to place VCD output"
     )
     ap.add_argument(
         "--version",
@@ -172,11 +174,17 @@ def get_args() -> argparse.Namespace:
         help="Display codem version information",
     )
     ap.add_argument(
-        "--log_type",
+        "--log-type",
         "-l",
         type=str,
         default=VcdRunConfig.LOG_TYPE,
         help="Specify how to log codem output, options include websocket, rich or console",
+    )
+    ap.add_argument(
+        "--websocket-url",
+        type=str,
+        default=VcdRunConfig.WEBSOCKET_URL,
+        help="Url to websocket receiver to connect to"
     )
     return ap.parse_args()
 
@@ -197,6 +205,7 @@ def create_config(args: argparse.Namespace) -> VCDParameters:
         COMPUTE_HAG=args.compute_hag,
         OUTPUT_DIR=args.output_dir,
         LOG_TYPE=args.log_type,
+        WEBSOCKET_URL=args.websocket_url
     )
     config_dict = dataclasses.asdict(config)
     log = Log(config_dict)
@@ -234,12 +243,14 @@ def run_no_console(config: VCDParameters) -> None:
     from codem.lib.progress import WebSocketProgress
 
     logger = config["log"].logger
-    for key, value in config.items():
-        logger.info(f"{key} = {value}")
+    
 
     with WebSocketProgress(config["WEBSOCKET_URL"]) as progress:
         change_detection = progress.add_task("Vertical Change Detection...", total=100)
-
+        
+        for key, value in config.items():
+            logger.info(f"{key} = {value}")
+            
         before = PointCloud(config, "BEFORE")
         progress.advance(change_detection, 14)
 
@@ -342,7 +353,7 @@ def main() -> None:
     config = create_config(args)
     if config["LOG_TYPE"] == "rich":
         run_rich_console(config)
-    elif config["LOG_TYPE"] == "websockets":
+    elif config["LOG_TYPE"] == "websocket":
         run_no_console(config)
     else:
         run_stdout_console(config)  # type: ignore

@@ -170,98 +170,98 @@ def get_args() -> argparse.Namespace:
         help="path to the area of interest file",
     )
     ap.add_argument(
-        "--min_resolution",
+        "--min-resolution",
         "-min",
         type=float,
         default=CodemRunConfig.MIN_RESOLUTION,
         help="minimum pipeline data resolution",
     )
     ap.add_argument(
-        "--dsm_akaze_threshold",
+        "--dsm-akaze-threshold",
         "-dat",
         type=float,
         default=0.0001,
         help="AKAZE feature detection response threshold",
     )
     ap.add_argument(
-        "--dsm_lowes_ratio",
+        "--dsm-lowes-ratio",
         "-dlr",
         type=float,
         default=0.9,
         help="feature matching relative strength control",
     )
     ap.add_argument(
-        "--dsm_ransac_max_iter",
+        "--dsm-ransac-max-iter",
         "-drmi",
         type=int,
         default=10000,
         help="max iterations for the RANSAC algorithm",
     )
     ap.add_argument(
-        "--dsm_ransac_threshold",
+        "--dsm-ransac-threshold",
         "-drt",
         type=float,
         default=10,
         help="maximum residual error for a feature matched pair to be included in RANSAC solution",
     )
     ap.add_argument(
-        "--dsm_solve_scale",
+        "--dsm-solve-scale",
         "-dss",
         type=str2bool,
         default=True,
         help="boolean to include or exclude scale from the solved registration transformation",
     )
     ap.add_argument(
-        "--dsm_strong_filter",
+        "--dsm-strong-filter",
         "-dsf",
         type=float,
         default=10,
         help="stddev of the large Gaussian filter used to normalize DSM prior to feature extraction",
     )
     ap.add_argument(
-        "--dsm_weak_filter",
+        "--dsm-weak-filter",
         "-dwf",
         type=float,
         default=1,
         help="stddev of the small Gaussian filter used to normalize the DSM prior to feature extraction",
     )
     ap.add_argument(
-        "--icp_angle_threshold",
+        "--icp-angle-threshold",
         "-iat",
         type=float,
         default=0.001,
         help="minimum change in Euler angle between ICP iterations",
     )
     ap.add_argument(
-        "--icp_distance_threshold",
+        "--icp-distance-threshold",
         "-idt",
         type=float,
         default=0.001,
         help="minimum change in translation between ICP iterations",
     )
     ap.add_argument(
-        "--icp_max_iter",
+        "--icp-max-iter",
         "-imi",
         type=int,
         default=100,
         help="max iterations of the ICP algorithm",
     )
     ap.add_argument(
-        "--icp_rmse_threshold",
+        "--icp-rmse-threshold",
         "-irt",
         type=float,
         default=0.0001,
         help="minimum relative change between iterations in the RMSE",
     )
     ap.add_argument(
-        "--icp_robust",
+        "--icp-robust",
         "-ir",
         type=str2bool,
         default=True,
         help="boolean to include or exclude robust weighting in registration solution",
     )
     ap.add_argument(
-        "--icp_solve_scale",
+        "--icp-solve-scale",
         "-iss",
         type=str2bool,
         default=True,
@@ -285,7 +285,7 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
-        "--output_dir", "-o", type=str, help="Directory to place registered output."
+        "--output-dir", "-o", type=str, help="Directory to place registered output."
     )
     ap.add_argument(
         "--version",
@@ -294,7 +294,7 @@ def get_args() -> argparse.Namespace:
         help="Display codem version information",
     )
     ap.add_argument(
-        "--log_type",
+        "--log-type",
         "-l",
         type=str,
         default=CodemRunConfig.LOG_TYPE,
@@ -332,6 +332,7 @@ def create_config(args: argparse.Namespace) -> CodemParameters:
         TIGHT_SEARCH=args.tight_search,
         OUTPUT_DIR=args.output_dir,
         LOG_TYPE=args.log_type,
+        WEBSOCKET_URL=args.websocket_url
     )
     config_dict = dataclasses.asdict(config)
     log = Log(config_dict)

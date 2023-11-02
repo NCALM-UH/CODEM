@@ -92,7 +92,11 @@ class Log:
         elif config["LOG_TYPE"] == "websocket":
             formatter = CustomJsonFormatter()
             self.relay = websocket.WebSocket()
-            self.relay.connect(f'ws://{config["WEBSOCKET_URL"]}/websocket')
+            url = f'ws://{config["WEBSOCKET_URL"]}/websocket'
+            try:
+                self.relay.connect(url)
+            except ConnectionRefusedError as err:
+                raise ConnectionRefusedError(f"Connection Refused to {url}")
             log_handler = WebSocketHandler("DEBUG", websocket=self.relay)
             log_handler.setFormatter(formatter)
         else:
