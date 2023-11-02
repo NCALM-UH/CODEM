@@ -24,7 +24,6 @@ This module contains the following classes and methods:
 * Mesh - class for Mesh data
 * instantiate - method for auto-instantiating the appropriate class
 """
-import asyncio
 import json
 import logging
 import math
@@ -76,6 +75,7 @@ class CodemParameters(TypedDict):
     OUTPUT_DIR: str
     TIGHT_SEARCH: bool
     LOG_TYPE: str
+    WEBSOCKET_URL: str
     log: Log
 
 

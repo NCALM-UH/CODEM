@@ -11,8 +11,6 @@ from typing import Any
 from typing import Dict
 from typing import TYPE_CHECKING
 
-from typing import Union
-
 if TYPE_CHECKING:
     from codem.preprocessing import CodemParameters
     from vcd.preprocessing import VCDParameters
@@ -89,6 +87,7 @@ class Log:
         # Supplemental Handler
         if config["LOG_TYPE"] == "rich":
             from rich.logging import RichHandler
+
             log_handler = RichHandler()
         elif config["LOG_TYPE"] == "websocket":
             formatter = CustomJsonFormatter()
@@ -101,6 +100,6 @@ class Log:
         log_handler.setLevel("DEBUG")
         self.logger.addHandler(log_handler)
 
-    def __del__(self):
+    def __del__(self) -> None:
         if isinstance(self.logger, WebSocketHandler):
             self.logger.close()

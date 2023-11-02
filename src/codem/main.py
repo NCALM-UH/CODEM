@@ -13,7 +13,6 @@ import argparse
 import dataclasses
 import math
 import os
-import sys
 import time
 import warnings
 from contextlib import ContextDecorator
@@ -305,7 +304,7 @@ def get_args() -> argparse.Namespace:
         "--websocket-url",
         type=str,
         default=CodemRunConfig.WEBSOCKET_URL,
-        help="Url to websocket receiver to connect to"
+        help="Url to websocket receiver to connect to",
     )
     return ap.parse_args()
 
@@ -335,8 +334,8 @@ def create_config(args: argparse.Namespace) -> CodemParameters:
         LOG_TYPE=args.log_type,
     )
     config_dict = dataclasses.asdict(config)
-    config_dict["log"] = Log(config_dict)
-
+    log = Log(config_dict)
+    config_dict["log"] = log
     return config_dict  # type: ignore
 
 
@@ -570,6 +569,7 @@ def main() -> None:
         config["log"].logger.info("run no console has finished")
     else:
         run_stdout_console(config)
+
 
 if __name__ == "__main__":
     main()

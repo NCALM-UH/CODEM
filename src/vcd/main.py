@@ -199,8 +199,8 @@ def create_config(args: argparse.Namespace) -> VCDParameters:
         LOG_TYPE=args.log_type,
     )
     config_dict = dataclasses.asdict(config)
-    config_dict["log"] = Log(config_dict)
-
+    log = Log(config_dict)
+    config_dict["log"] = log
     return config_dict  # type: ignore
 
 
@@ -237,7 +237,7 @@ def run_no_console(config: VCDParameters) -> None:
     for key, value in config.items():
         logger.info(f"{key} = {value}")
 
-    with WebSocketProgress() as progress:
+    with WebSocketProgress(config["WEBSOCKET_URL"]) as progress:
         change_detection = progress.add_task("Vertical Change Detection...", total=100)
 
         before = PointCloud(config, "BEFORE")

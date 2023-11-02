@@ -11,7 +11,7 @@ except ImportError:
 else:
 
     class WebSocketProgress(ContextDecorator):
-        def __init__(self, url) -> None:
+        def __init__(self, url: str) -> None:
             super().__init__()
             self.ws = websocket.WebSocket()
             self.tasks: Dict[str, int] = {}
@@ -27,7 +27,6 @@ else:
             return None
 
         def advance(self, name: str, value: int) -> None:
-            task_total = self.tasks[name]
             self.current[name] += value
             new_value = self.current[name]
             self.ws.send(json.dumps({"advance": new_value, "type": "progress"}))
