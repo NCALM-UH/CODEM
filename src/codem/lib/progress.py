@@ -19,7 +19,11 @@ else:
             self.url = url
 
         def __enter__(self) -> Any:
-            self.ws.connect(f"ws://{self.url}/websocket")
+            url = f'ws://{self.url}/websocket'
+            try:
+                self.ws.connect(url)
+            except ConnectionRefusedError as err:
+                raise ConnectionRefusedError(f"Connection Refused to {url}")
             return self
 
         def __exit__(self, *args: Any, **kwargs: Any) -> None:

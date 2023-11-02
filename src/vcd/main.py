@@ -110,25 +110,25 @@ def get_args() -> argparse.Namespace:
         help="Raster output resolution",
     )
     ap.add_argument(
-        "--min_points",
+        "--min-points",
         type=int,
         default=VcdRunConfig.MIN_POINTS,
         help="Minimum points to cluster around",
     )
     ap.add_argument(
-        "--cluster_tolerance",
+        "--cluster-tolerance",
         type=float,
         default=VcdRunConfig.CLUSTER_TOLERANCE,
         help="Cluster tolerance used by pdal.Filter.cluster",
     )
     ap.add_argument(
-        "--cull_cluster_ids",
+        "--cull-cluster-ids",
         type=str,
         default=",".join(map(str, VcdRunConfig.CULL_CLUSTER_IDS)),
         help="Comma separated list of cluster IDs to cull when producing the meshes",
     )
     ap.add_argument(
-        "--class_labels",
+        "--class-labels",
         type=str,
         default=",".join(map(str, VcdRunConfig.CLASS_LABELS)),
         help="Comma separated list of classification labels to use when producing the meshes",
@@ -148,7 +148,7 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
-        "--trust_labels",
+        "--trust-labels",
         action="store_true",
         help=(
             "Trusts existing classification labels in the removal of vegetation/noise, "
@@ -157,7 +157,7 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
-        "--compute_hag",
+        "--compute-hag",
         action="store_true",
         help=(
             "Compute height above ground between after scan (non-ground) and before "
@@ -165,7 +165,7 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
-        "--output_dir", "-o", type=str, help="Directory to place VCD output"
+        "--output-dir", "-o", type=str, help="Directory to place VCD output"
     )
     ap.add_argument(
         "--version",
@@ -174,7 +174,7 @@ def get_args() -> argparse.Namespace:
         help="Display codem version information",
     )
     ap.add_argument(
-        "--log_type",
+        "--log-type",
         "-l",
         type=str,
         default=VcdRunConfig.LOG_TYPE,
@@ -205,6 +205,7 @@ def create_config(args: argparse.Namespace) -> VCDParameters:
         COMPUTE_HAG=args.compute_hag,
         OUTPUT_DIR=args.output_dir,
         LOG_TYPE=args.log_type,
+        WEBSOCKET_URL=args.websocket_url
     )
     config_dict = dataclasses.asdict(config)
     log = Log(config_dict)
