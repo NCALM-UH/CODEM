@@ -3,15 +3,9 @@ main.py
 """
 import argparse
 import dataclasses
-import logging
 import os
 import time
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 from typing import Tuple
-from typing import Union
 
 import yaml
 from codem import __version__
@@ -21,49 +15,6 @@ from vcd.meshing.mesh import Mesh
 from vcd.preprocessing.preprocess import PointCloud
 from vcd.preprocessing.preprocess import VCD
 from vcd.preprocessing.preprocess import VCDParameters
-
-try:
-    import rich
-except ImportError:
-    _has_rich = False
-    from contextlib import ContextDecorator
-
-    class Progress(ContextDecorator):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__()
-
-        def __enter__(self, *args: Any, **kwargs: Any) -> Any:
-            return self
-
-        def __exit__(self, *args: Any, **kwargs: Any) -> None:
-            pass
-
-        def add_task(self, *args: Any, **kwargs: Any) -> None:
-            pass
-
-        def advance(self, *args: Any, **kwargs: Any) -> None:
-            pass
-
-        @staticmethod
-        def get_default_columns() -> List:
-            return []
-
-    class Dummy:
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            self.level = float("-inf")
-
-        def print(self, *args: Any, **kwargs: Any) -> None:
-            print(*args)
-
-    Console = Dummy  # type: ignore
-    SpinnerColumn = TimeElapsedColumn = object  # type: ignore
-else:
-    _has_rich = True
-    from rich.console import Console  # type: ignore
-    from rich.logging import RichHandler  # type: ignore
-    from rich.progress import Progress  # type: ignore
-    from rich.progress import SpinnerColumn  # type: ignore
-    from rich.progress import TimeElapsedColumn  # type: ignore
 
 
 @dataclasses.dataclass
@@ -78,10 +29,11 @@ class VcdRunConfig:
     CLUSTER_TOLERANCE: float = 2.0
     CULL_CLUSTER_IDS: Tuple[int, ...] = (-1, 0)
     CLASS_LABELS: Tuple[int, ...] = (2, 6)
-    OUTPUT_DIR: Optional[str] = None
+    OUTPUT_DIR: str = "."
     COLORMAP: str = "RdBu"
     TRUST_LABELS: bool = False
     COMPUTE_HAG: bool = False
+    LOG_TYPE: str = "rich"
 
     def __post_init__(self) -> None:
         # set output directory
@@ -211,16 +163,25 @@ def get_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
+        "--output_dir", "-o", type=str, help="Directory to place VCD output"
+    )
+    ap.add_argument(
         "--version",
         action="version",
         version=f"{__version__}",
         help="Display codem version information",
     )
-    args = ap.parse_args()
-    return args
+    ap.add_argument(
+        "--log_type",
+        "-l",
+        type=str,
+        default=VcdRunConfig.LOG_TYPE,
+        help="Specify how to log codem output, options include websocket, rich or console",
+    )
+    return ap.parse_args()
 
 
-def create_config(args: argparse.Namespace) -> Dict[str, Any]:
+def create_config(args: argparse.Namespace) -> VCDParameters:
     config = VcdRunConfig(
         os.fsdecode(os.path.abspath(args.before)),
         os.fsdecode(os.path.abspath(args.after)),
@@ -234,13 +195,80 @@ def create_config(args: argparse.Namespace) -> Dict[str, Any]:
         CLASS_LABELS=tuple(map(int, args.class_labels.split(","))),
         TRUST_LABELS=args.trust_labels,
         COMPUTE_HAG=args.compute_hag,
+        OUTPUT_DIR=args.output_dir,
+        LOG_TYPE=args.log_type,
     )
-    return dataclasses.asdict(config)
+    config_dict = dataclasses.asdict(config)
+    log = Log(config_dict)
+    config_dict["log"] = log
+    return config_dict  # type: ignore
 
 
-def run_console(
-    config: VCDParameters, logger: logging.Logger, console: Console
-) -> None:
+def run_stdout_console(config: VCDParameters) -> None:
+    print("/************************************\\")
+    print("*               VCD                  *")
+    print("**************************************")
+    print("*     AUTHORS: Brad Chambers &       *")
+    print("*     Howard Butler                  *")
+    print("*     DEVELOPED FOR: CRREL/NEGGS     *")
+    print("\\************************************/")
+    print()
+    print("==============PARAMETERS==============")
+
+    logger = config["log"].logger
+    for key, value in config.items():
+        logger.info(f"{key} = {value}")
+    before = PointCloud(config, "BEFORE")
+    after = PointCloud(config, "AFTER")
+    v = VCD(before, after)
+    v.compute_indexes()
+    v.make_products()
+    v.cluster()
+    v.rasterize()
+    m = Mesh(v)
+    m.write("cluster", m.cluster(v.clusters))
+    v.save()
+
+
+def run_no_console(config: VCDParameters) -> None:
+    from codem.lib.progress import WebSocketProgress
+
+    logger = config["log"].logger
+    for key, value in config.items():
+        logger.info(f"{key} = {value}")
+
+    with WebSocketProgress(config["WEBSOCKET_URL"]) as progress:
+        change_detection = progress.add_task("Vertical Change Detection...", total=100)
+
+        before = PointCloud(config, "BEFORE")
+        progress.advance(change_detection, 14)
+
+        after = PointCloud(config, "AFTER")
+        progress.advance(change_detection, 15)
+
+        v = VCD(before, after)
+        progress.advance(change_detection, 15)
+
+        v.compute_indexes()
+        progress.advance(change_detection, 15)
+
+        v.make_products()
+        progress.advance(change_detection, 15)
+
+        v.cluster()
+        progress.advance(change_detection, 15)
+
+        v.rasterize()
+        progress.advance(change_detection, 15)
+
+        m = Mesh(v)
+        m.write("cluster", m.cluster(v.clusters))
+        v.save()
+
+        progress.advance(change_detection, 10)
+
+
+def run_rich_console(config: VCDParameters) -> None:
     """
     Preprocess and register the provided data
 
@@ -249,75 +277,76 @@ def run_console(
     config: dict
         Dictionary of configuration parameters
     """
+    from rich.console import Console  # type: ignore
+    from rich.progress import Progress  # type: ignore
+    from rich.progress import SpinnerColumn  # type: ignore
+    from rich.progress import TimeElapsedColumn  # type: ignore
 
+    console = Console()
+    logger = config["log"].logger
     with Progress(
         SpinnerColumn(),
         *Progress.get_default_columns(),
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        registration = progress.add_task("Vertical Change Detection...", total=100)
+        change_detection = progress.add_task("Vertical Change Detection...", total=100)
 
         # characters are problematic on a windows console
-        console.print("╔════════════════════════════════════╗", justify="center")
-        console.print("║               VCD                  ║", justify="center")
-        console.print("╚════════════════════════════════════╝", justify="center")
-        console.print("║     AUTHORS: Brad Chambers &       ║", justify="center")
-        console.print("║     Howard Butler                  ║", justify="center")
-        console.print("║     DEVELOPED FOR: CRREL/NEGGS     ║", justify="center")
-        console.print("╚════════════════════════════════════╝", justify="center")
+        console.print("/************************************\\", justify="center")
+        console.print("*               VCD                  *", justify="center")
+        console.print("**************************************", justify="center")
+        console.print("*     AUTHORS: Brad Chambers &       *", justify="center")
+        console.print("*     Howard Butler                  *", justify="center")
+        console.print("*     DEVELOPED FOR: CRREL/NEGGS     *", justify="center")
+        console.print("\\************************************/", justify="center")
         console.print()
-        console.print("══════════════PARAMETERS══════════════", justify="center")
-        for key in config:
-            logger.info(f"{key} = {config[key]}")  # type: ignore
-        progress.advance(registration, 1)
+        console.print("==============PARAMETERS==============", justify="center")
+        for key, value in config.items():
+            logger.info(f"{key} = {value}")
+        progress.advance(change_detection, 1)
 
-        console.print("══════════PREPROCESSING DATA══════════", justify="center")
-        console.print("══════════Filtering 'before' data ====", justify="center")
+        console.print("==========PREPROCESSING DATA==========", justify="center")
+        console.print("==========Filtering 'before' data ====", justify="center")
         before = PointCloud(config, "BEFORE")
-        progress.advance(registration, 14)
-        console.print("══════════Filtering 'after' data =====", justify="center")
+        progress.advance(change_detection, 14)
+        console.print("==========Filtering 'after' data =====", justify="center")
         after = PointCloud(config, "AFTER")
-        progress.advance(registration, 15)
+        progress.advance(change_detection, 15)
         console.print(
-            "══════════Computing indexes for comparison =====", justify="center"
+            "==========Computing indexes for comparison =====", justify="center"
         )
         v = VCD(before, after)
         v.compute_indexes()
-        progress.advance(registration, 15)
-        console.print("══════════ Extracting differences ", justify="center")
+        progress.advance(change_detection, 15)
+        console.print("========== Extracting differences ", justify="center")
         v.make_products()
-        progress.advance(registration, 15)
-        console.print("══════════ Clustering ", justify="center")
+        progress.advance(change_detection, 15)
+        console.print("========== Clustering ", justify="center")
         v.cluster()
-        progress.advance(registration, 15)
-        console.print("══════════ Rasterizing products ", justify="center")
+        progress.advance(change_detection, 15)
+        console.print("========== Rasterizing products ", justify="center")
         v.rasterize()
-        progress.advance(registration, 15)
-        console.print("══════════ Meshing products ", justify="center")
+        progress.advance(change_detection, 15)
+        console.print("========== Meshing products ", justify="center")
 
         m = Mesh(v)
         m.write("cluster", m.cluster(v.clusters))
 
         v.save()
-        progress.advance(registration, 10)
+        progress.advance(change_detection, 10)
 
 
 def main() -> None:
     args = get_args()
     config = create_config(args)
-    console = Console()
-    log_handler: Union[rich.logging.RichHandler, logging.StreamHandler]
-    if _has_rich:
-        log_handler = rich.logging.RichHandler(
-            level="DEBUG", console=console, markup=False
-        )
+    if config["LOG_TYPE"] == "rich":
+        run_rich_console(config)
+    elif config["LOG_TYPE"] == "websockets":
+        run_no_console(config)
     else:
-        log_handler = logging.StreamHandler()
-        log_handler.setLevel(logging.DEBUG)
-    codem_logger = Log(config)
-    codem_logger.logger.addHandler(log_handler)
-    run_console(config, codem_logger.logger, console)  # type: ignore
+        run_stdout_console(config)  # type: ignore
+    return None
 
 
 if __name__ == "__main__":

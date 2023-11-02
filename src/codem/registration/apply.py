@@ -13,9 +13,6 @@ This module contains the following class:
 import json
 import logging
 import os
-from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -26,6 +23,7 @@ import pdal
 import rasterio
 import trimesh
 from codem import __version__
+from codem.preprocessing.preprocess import CodemParameters
 from codem.preprocessing.preprocess import GeoData
 from codem.preprocessing.preprocess import RegistrationParameters
 from matplotlib.tri import LinearTriInterpolator
@@ -71,7 +69,7 @@ class ApplyRegistration:
         registration_parameters: RegistrationParameters,
         residual_vectors: np.ndarray,
         residual_origins: np.ndarray,
-        config: Dict[str, Any],
+        config: CodemParameters,
         output_format: Optional[str],
     ) -> None:
         self.logger = logging.getLogger(__name__)
