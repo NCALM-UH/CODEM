@@ -342,6 +342,13 @@ class ApplyRegistration:
         writer_kwargs = {"filename": self.out_name}
         if self.fnd_crs is not None:
             writer_kwargs["a_srs"] = self.fnd_crs.to_wkt()
+        writer_kwargs["forward"] = "all"
+        writer_kwargs["offset_x"] = self.config["OFFSET_X"]
+        writer_kwargs["offset_y"] = self.config["OFFSET_Y"]
+        writer_kwargs['offset_z'] = self.config["OFFSET_Z"]
+        writer_kwargs["scale_x"] = self.config["SCALE_X"]
+        writer_kwargs["scale_y"] = self.config["SCALE_Y"]
+        writer_kwargs['scale_z'] = self.config["SCALE_Z"]
         pipeline |= pdal.Writer.las(**writer_kwargs)
 
         pipeline.execute()

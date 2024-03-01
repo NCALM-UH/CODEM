@@ -29,10 +29,10 @@ import logging
 import math
 import os
 import tempfile
-from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import codem.lib.resources as r
 import cv2
@@ -70,6 +70,12 @@ class CodemParameters(TypedDict):
     ICP_RMSE_THRESHOLD: float
     ICP_ROBUST: bool
     ICP_SOLVE_SCALE: bool
+    OFFSET_X: str
+    OFFSET_Y: str
+    OFFSET_Z: str
+    SCALE_X: str
+    SCALE_Y: str
+    SCALE_Z: str
     VERBOSE: bool
     ICP_SAVE_RESIDUALS: bool
     OUTPUT_DIR: str
