@@ -21,7 +21,6 @@ try:
 except ImportError:
     pass
 else:
-
     class CustomJsonFormatter(jsonlogger.JsonFormatter):
         def add_fields(
             self,
@@ -39,20 +38,21 @@ else:
                 log_record["type"] = "log_message"
             return None
 
-    class WebSocketHandler(logging.Handler):
-        def __init__(self, level: str, websocket: "websocket.WebSocket") -> None:
-            super().__init__(level)
-            self.ws = websocket
-            # TODO: check if websocket is already connected?
 
-        def emit(self, record: logging.LogRecord) -> None:
-            msg = self.format(record)
-            _ = self.ws.send(msg)
-            return None
+class WebSocketHandler(logging.Handler):
+    def __init__(self, level: str, websocket: "websocket.WebSocket") -> None:
+        super().__init__(level)
+        self.ws = websocket
+        # TODO: check if websocket is already connected?
 
-        def close(self) -> None:
-            self.ws.close()
-            return super().close()
+    def emit(self, record: logging.LogRecord) -> None:
+        msg = self.format(record)
+        _ = self.ws.send(msg)
+        return None
+
+    def close(self) -> None:
+        self.ws.close()
+        return super().close()
 
 
 class Log:
