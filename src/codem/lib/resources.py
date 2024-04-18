@@ -6,6 +6,6 @@ Date: February 2021
 Supported filetypes
 """
 
-dsm_filetypes = [".tif"]
+dsm_filetypes = [".vrt", ".tif"]
 pcloud_filetypes = [".las", ".laz", ".bpf", ".json"]
 mesh_filetypes = [".ply", ".obj"]
