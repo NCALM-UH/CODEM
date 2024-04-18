@@ -46,7 +46,7 @@ vcd = "vcd.main:main"
 
 [tool.black]
 line-length = 88
-target-version = ['py37']
+target-version = ['py39']
 include = '\.py(i|t)?$'
 exclude = '''
 (
