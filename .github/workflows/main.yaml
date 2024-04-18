@@ -25,6 +25,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Install apt dependencies
+        run: |
+          sudo apt-get update -y --allow-releaseinfo-change
+          sudo apt-get install --no-install-recommends -y \
+            libegl1-mesa \
+            libopengl0 \
+            libgl1 \
+            libgl1-mesa-glx 
       - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-version: latest
