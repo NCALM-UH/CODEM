@@ -17,7 +17,6 @@ import time
 import warnings
 from contextlib import ContextDecorator
 from typing import Any
-from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -74,6 +73,12 @@ class CodemRunConfig:
     ICP_RMSE_THRESHOLD: float = 0.0001
     ICP_ROBUST: bool = True
     ICP_SOLVE_SCALE: bool = True
+    OFFSET_X: str= 'auto'
+    OFFSET_Y: str = 'auto'
+    OFFSET_Z: str = 'auto'
+    SCALE_X: str = "0.01"
+    SCALE_Y: str = "0.01"
+    SCALE_Z: str = "0.01"
     VERBOSE: bool = False
     ICP_SAVE_RESIDUALS: bool = False
     OUTPUT_DIR: Optional[str] = None
@@ -137,6 +142,25 @@ class CodemRunConfig:
             raise ValueError(
                 "ICP minimum change in RMSE convergence threshold must be greater than 0."
             )
+        for offset in [self.OFFSET_X, self.OFFSET_Y, self.OFFSET_Z]:
+            if (
+                offset != "auto"
+                and not offset.isnumeric()
+            ):
+                raise ValueError(
+                    "Offset values need to be set to 'auto' or an integer"
+                )
+        for scale in [self.SCALE_X, self.SCALE_Y, self.SCALE_Z]:
+            if (
+                isinstance(scale, str)
+                and scale != "auto"
+            ):
+                try:
+                    float(scale)
+                except ValueError as e:
+                    raise ValueError(
+                        "Offset values need to be set to 'auto' or an float"
+                    ) from e
 
         # dump config
         config_path = os.path.join(self.OUTPUT_DIR, "config.yml")
@@ -273,6 +297,69 @@ def get_args() -> argparse.Namespace:
         help="Write ICP residual information",
     )
     ap.add_argument(
+        "--offset-x",
+        type=str,
+        default='auto',
+        help=(
+            "Offset to be subtracted from the X nominal value, before "
+            "the value is scaled. The special value auto can be specified, which causes "
+            "the writer to set the offset to the minimum value of the dimension. "
+        )
+    )
+    ap.add_argument(
+        "--offset-y",
+        type=str,
+        default='auto',
+        help=(
+            "Offset to be subtracted from the Y nominal value, before "
+            "the value is scaled. The special value auto can be specified, which causes "
+            "the writer to set the offset to the minimum value of the dimension. "
+        )
+    )
+    ap.add_argument(
+        "--offset-z",
+        type=str,
+        default='auto',
+        help=(
+            "Offset to be subtracted from the Z nominal value, before "
+            "the value is scaled. The special value auto can be specified, which causes "
+            "the writer to set the offset to the minimum value of the dimension. "
+        )
+    )
+    ap.add_argument(
+        "--scale-x",
+        type=str,
+        default='.01',
+        help=(
+            "Scale to be divided from the X nominal value, "
+            "after the offset has been applied. The special value auto can be specified, "
+            "which causes the writer to select a scale to set the stored values of the "
+            "dimensions to range from [0, 2147483647]."
+        )
+    )
+    ap.add_argument(
+        "--scale-y",
+        type=str,
+        default='.01',
+        help=(
+            "Scale to be divided from the Y nominal value, "
+            "after the offset has been applied. The special value auto can be specified, "
+            "which causes the writer to select a scale to set the stored values of the "
+            "dimensions to range from [0, 2147483647]."
+        )
+    )
+    ap.add_argument(
+        "--scale-z",
+        type=str,
+        default='.01',
+        help=(
+            "Scale to be divided from the Z nominal value, "
+            "after the offset has been applied. The special value auto can be specified, "
+            "which causes the writer to select a scale to set the stored values of the "
+            "dimensions to range from [0, 2147483647]."
+        )
+    )   
+    ap.add_argument(
         "--verbose", "-v", action="store_true", help="turn on verbose logging"
     )
     ap.add_argument(
@@ -327,6 +414,12 @@ def create_config(args: argparse.Namespace) -> CodemParameters:
         ICP_RMSE_THRESHOLD=float(args.icp_rmse_threshold),
         ICP_ROBUST=args.icp_robust,
         ICP_SOLVE_SCALE=args.icp_solve_scale,
+        SCALE_X=args.scale_x,
+        SCALE_Y=args.scale_y,
+        SCALE_Z=args.scale_z,
+        OFFSET_X=args.offset_x,
+        OFFSET_Y=args.offset_y,
+        OFFSET_Z=args.offset_z,
         VERBOSE=args.verbose,
         ICP_SAVE_RESIDUALS=args.icp_save_residuals,
         TIGHT_SEARCH=args.tight_search,
