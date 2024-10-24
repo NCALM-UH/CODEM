@@ -553,13 +553,6 @@ class DSM(GeoData):
                 )
                 self.native_resolution = abs(T.a)
                 self.units = "m"
-            elif not data.crs.is_valid:
-                self.logger.warning(
-                    f"CRS {data.crs.to_wkt()} is not valid, assuming linear units "
-                    "are meters."
-                )
-                self.native_resolution = abs(T.a)
-                self.units = "m"
             elif not data.crs.is_projected:
                 self.logger.info("CRS is not projected, converting to meters")
 
