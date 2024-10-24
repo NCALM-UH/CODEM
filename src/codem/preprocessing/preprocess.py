@@ -480,7 +480,7 @@ class DSM(GeoData):
 
             # Scale the elevation values into meters
             mask = (self._get_nodata_mask(self.dsm)).astype(bool)
-            if np.can_cast(self.units_factor, self.dsm.dtype, casting="same_kind"):
+            if np.can_cast(np.array([self.units_factor]), self.dsm.dtype, casting="same_kind"):
                 self.dsm[mask] *= self.units_factor
             elif isinstance(self.units_factor, float):
                 if self.units_factor.is_integer():
