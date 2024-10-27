@@ -377,8 +377,8 @@ class DsmRegistration:
             temp = transform * (cr)
             xy.append([temp[0], temp[1]])
 
-        z_ = np.asarray(z)
-        xy_ = np.asarray(xy)
+        z_ = np.asarray(z, dtype=np.float64)
+        xy_ = np.asarray(xy, dtype=np.float64)
         return np.vstack((xy_.T, z_)).T
 
     def _get_rmse(self) -> None:
