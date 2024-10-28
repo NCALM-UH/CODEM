@@ -227,8 +227,8 @@ class GeoData:
             mask = dsm != self.nodata
         else:
             mask = ~nan_mask
-
-        return mask.astype(np.uint8)
+        mask = mask.astype(np.uint8)
+        return mask
 
     def _infill(self) -> None:
         """
