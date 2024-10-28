@@ -63,7 +63,7 @@ exclude = '''
 
 [tool.mypy]
 plugins = 'numpy.typing.mypy_plugin'
-python_version = 3.9
+python_version = '3.9'
 warn_return_any = true
 disallow_untyped_defs = true
 disallow_untyped_calls = true
