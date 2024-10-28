@@ -377,9 +377,10 @@ class DsmRegistration:
             temp = transform * (cr)
             xy.append([temp[0], temp[1]])
 
-        z_ = np.asarray(z)
-        xy_ = np.asarray(xy)
-        return np.vstack((xy_.T, z_)).T
+        z_ = np.asarray(z, dtype=np.float64)
+        xy_ = np.asarray(xy, dtype=np.float64)
+        result: np.ndarray = np.vstack((xy_.T, z_)).T
+        return result
 
     def _get_rmse(self) -> None:
         """
@@ -571,7 +572,8 @@ class Scaled3dSimilarityTransform:
         # Eq. (40) and (43).
         rank = np.linalg.matrix_rank(A)
         if rank == 0:
-            return np.full_like(T, np.nan)
+            result: np.ndarray = np.full_like(T, np.nan)
+            return result
         elif rank == dim - 1:
             if np.linalg.det(U) * np.linalg.det(V) > 0:
                 T[:dim, :dim] = U @ V
@@ -696,7 +698,8 @@ class Unscaled3dSimilarityTransform:
         # Eq. (40) and (43).
         rank = np.linalg.matrix_rank(A)
         if rank == 0:
-            return np.full_like(T, np.nan)
+            result: np.ndarray = np.full_like(T, np.nan)
+            return result
         elif rank == dim - 1:
             if np.linalg.det(U) * np.linalg.det(V) > 0:
                 T[:dim, :dim] = U @ V

@@ -5,24 +5,20 @@ description = "A package for co-registering geospatial data"
 readme = "readme.md"
 license = { text = "Apache-2.0" }
 authors = [
-  { name = "Preston Hartzell", email = "pjhartzell@uh.edu"},
+  { name = "Preston Hartzell", email = "pjhartzell@uh.edu" },
   { name = "Jesse Shanahan" },
-  { name = "Bahirah Adewunmi" }
+  { name = "Bahirah Adewunmi" },
 ]
-maintainers = [
-    { name = "Ognyan Moore", email = "ogi@hobu.co" }
-]
+maintainers = [{ name = "Ognyan Moore", email = "ogi@hobu.co" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Information Technology",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: Apache Software License",
   "Topic :: Scientific/Engineering :: GIS",
-  "Topic :: Scientific/Engineering :: Image Processing"
+  "Topic :: Scientific/Engineering :: Image Processing",
 ]
-dependencies = [
-  "typing-extensions"
-]
+dependencies = ["typing-extensions"]
 dynamic = ["version"]
 
 [project.urls]
@@ -30,7 +26,7 @@ homepage = "https://github.com/NCALM-UH/CODEM"
 repository = "https://github.com/NCALM-UH/CODEM"
 
 [tool.setuptools]
-package-dir = {"" =  "src"}
+package-dir = { "" = "src" }
 zip-safe = false
 
 [tool.setuptools.dynamic]
@@ -66,7 +62,8 @@ exclude = '''
 '''
 
 [tool.mypy]
-python_version = 3.9
+plugins = 'numpy.typing.mypy_plugin'
+python_version = '3.9'
 warn_return_any = true
 disallow_untyped_defs = true
 disallow_untyped_calls = true
@@ -108,6 +105,6 @@ module = [
   "skimage",
   "skimage.measure",
   "trimesh",
-  "websocket"
+  "websocket",
 ]
 ignore_missing_imports = true
