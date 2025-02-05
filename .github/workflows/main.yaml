@@ -32,7 +32,7 @@ jobs:
             libegl1-mesa \
             libopengl0 \
             libgl1 \
-            libgl1-mesa-glx
+            libglx-mesa0
       - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-version: latest
