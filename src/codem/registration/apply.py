@@ -19,6 +19,7 @@ from typing import Union
 
 import codem.lib.resources as r
 import numpy as np
+import numpy.typing as npt
 import pdal
 import rasterio
 import trimesh
@@ -67,8 +68,8 @@ class ApplyRegistration:
         fnd_obj: GeoData,
         aoi_obj: GeoData,
         registration_parameters: RegistrationParameters,
-        residual_vectors: np.ndarray,
-        residual_origins: np.ndarray,
+        residual_vectors: npt.NDArray,
+        residual_origins: npt.NDArray,
         config: CodemParameters,
         output_format: Optional[str],
     ) -> None:
@@ -117,7 +118,7 @@ class ApplyRegistration:
         meters_to_fnd = np.eye(4) * (1 / self.fnd_units_factor)
         meters_to_fnd[3, 3] = 1
 
-        aoi_to_fnd_array: np.ndarray = (
+        aoi_to_fnd_array: npt.NDArray = (
             meters_to_fnd @ self.registration_transform @ aoi_to_meters
         )
 
@@ -223,8 +224,8 @@ class ApplyRegistration:
             rows = np.arange(dsm.shape[0], dtype=np.float64)
             cols = np.arange(dsm.shape[1], dtype=np.float64)
             uu, vv = np.meshgrid(cols, rows)
-            u = np.reshape(uu, -1)
-            v = np.reshape(vv, -1)
+            u: npt.NDArray = np.reshape(uu, -1)
+            v: npt.NDArray = np.reshape(vv, -1)
             if area_or_point == "Area":
                 u += 0.5
                 v += 0.5
@@ -412,8 +413,8 @@ class ApplyRegistration:
             )
 
     def _interpolate_residuals(
-        self, x: np.ndarray, y: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        self, x: npt.NDArray, y: npt.NDArray
+    ) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
         """
         Interpolate ICP residuals at registered AOI x,y locations. The
         registration is solved using a gridded set of points, while the AOI

@@ -24,6 +24,7 @@ from typing import Tuple
 
 import cv2
 import numpy as np
+import numpy.typing as npt
 from codem.preprocessing.preprocess import CodemParameters
 from codem.preprocessing.preprocess import GeoData
 from codem.preprocessing.preprocess import RegistrationParameters
@@ -298,7 +299,7 @@ class DsmRegistration:
         fnd_xyz = (self.transformation @ aoi_xyz.T).T
         fnd_xy = np.vstack((fnd_xyz[:, 0:2].T, np.ones((1, 4)))).T
 
-        F_inverse = np.reshape(np.asarray(~self.fnd_obj.transform), (3, 3))
+        F_inverse: npt.NDArray[np.float64] = np.reshape(np.asarray(~self.fnd_obj.transform), (3, 3))
         fnd_uv = (F_inverse @ fnd_xy.T).T
         fnd_uv = fnd_uv[:, 0:2]
 
@@ -404,7 +405,7 @@ class DsmRegistration:
         """
         Stores registration results in a dictionary and writes them to a file
         """
-        X = self.transformation
+        X: npt.NDArray[np.float64] = self.transformation
         R = X[0:3, 0:3]
         c = np.sqrt(R[0, 0] ** 2 + R[1, 0] ** 2 + R[2, 0] ** 2)
         omega = np.rad2deg(np.arctan2(R[2, 1] / c, R[2, 2] / c))

@@ -33,10 +33,12 @@ import pathlib
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import codem.lib.resources as r
 import cv2
 import numpy as np
+import numpy.typing as npt
 import pdal
 import pyproj
 import rasterio.fill
@@ -86,7 +88,7 @@ class CodemParameters(TypedDict):
 
 
 class RegistrationParameters(TypedDict):
-    matrix: np.ndarray
+    matrix: npt.NDArray[np.float64]
     omega: np.float64
     phi: np.float64
     kappa: np.float64
@@ -205,7 +207,7 @@ class GeoData:
         if self.transform == rasterio.Affine.identity():
             self.logger.warning(f"{tag}-{self.type.upper()} has an identity transform.")
 
-    def _get_nodata_mask(self, dsm: np.ndarray) -> np.ndarray:
+    def _get_nodata_mask(self, dsm: npt.NDArray) -> npt.NDArray:
         """
         Generates a binary array indicating invalid data locations in the
         passed array. Invalid data are NaN and nodata values. A value of '1'
@@ -222,7 +224,7 @@ class GeoData:
             The binary mask
         """
         nan_mask = np.isnan(dsm)
-        mask: np.ndarray
+        mask: npt.NDArray
         if self.nodata is not None:
             dsm[nan_mask] = self.nodata
             mask = dsm != self.nodata
@@ -293,19 +295,21 @@ class GeoData:
             )
         rows = np.arange(self.dsm.shape[0], dtype=np.float64)
         cols = np.arange(self.dsm.shape[1], dtype=np.float64)
+        uu: npt.NDArray[np.float64]
+        vv: npt.NDArray[np.float64]
         uu, vv = np.meshgrid(cols, rows)
-        u = np.reshape(uu, -1)
-        v = np.reshape(vv, -1)
+        u: npt.NDArray[np.float64] = np.reshape(uu, -1)
+        v: npt.NDArray[np.float64] = np.reshape(vv, -1)
 
         if self.area_or_point == "Area":
             u += 0.5
             v += 0.5
 
         xy = np.asarray(self.transform * (u, v))
-        z = np.reshape(self.dsm, -1)
+        z: npt.NDArray[np.float32] = np.reshape(self.dsm, -1)
         xyz = np.vstack((xy, z)).T
 
-        mask = np.reshape(np.array(self.nodata_mask, dtype=bool), -1)
+        mask: npt.NDArray[bool] = np.reshape(np.array(self.nodata_mask, dtype=bool), -1)
         xyz = xyz[mask]
 
         self.point_cloud = xyz
@@ -603,18 +607,18 @@ class PipelineReader(object):
         else:
             self.inputType = 'readable'
 
-    def get(self):
+    def get(self) -> Union[pdal.Reader, pdal.Pipeline]:
         if self.inputType == 'pipeline':
             return self.readPipeline()
         else:
             return self.readFile()
 
-    def readFile(self):
+    def readFile(self) -> pdal.Reader:
         reader = pdal.Reader(str(self.filename))
         pipeline = reader
         return pipeline
 
-    def readPipeline(self):
+    def readPipeline(self) -> pdal.Pipeline:
         if self.inputType != 'pipeline':
             raise RuntimeError("Data type is not pipeline!")
         j = self.filename.read_bytes().decode('utf-8')
