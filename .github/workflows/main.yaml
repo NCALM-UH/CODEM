@@ -29,7 +29,6 @@ jobs:
         run: |
           sudo apt-get update -y --allow-releaseinfo-change
           sudo apt-get install --no-install-recommends -y \
-            libegl1-mesa \
             libopengl0 \
             libgl1 \
             libglx-mesa0
