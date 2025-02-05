@@ -29,6 +29,7 @@ import logging
 import math
 import os
 import tempfile
+import pathlib
 from typing import Dict
 from typing import Optional
 from typing import Tuple
@@ -593,6 +594,43 @@ class DSM(GeoData):
         )
 
 
+class PipelineReader(object):
+    def __init__(self, filename: str):
+        self.filename = pathlib.Path(filename)
+
+        if '.json' in self.filename.suffixes:
+            self.inputType = 'pipeline'
+        else:
+            self.inputType = 'readable'
+
+    def get(self):
+        if self.inputType == 'pipeline':
+            return self.readPipeline()
+        else:
+            return self.readFile()
+
+    def readFile(self):
+        reader = pdal.Reader(str(self.filename))
+        pipeline = reader
+        return pipeline
+
+    def readPipeline(self):
+        if self.inputType != 'pipeline':
+            raise RuntimeError("Data type is not pipeline!")
+        j = self.filename.read_bytes().decode('utf-8')
+        stages = pdal.pipeline._parse_stages(j)
+        p = pdal.Pipeline(stages)
+
+        # strip off any writers because we're making our own
+        stages = []
+        for stage in p.stages:
+            if stage.type.split('.')[0] != 'writers':
+                stages.append(stage)
+
+        p = pdal.Pipeline(stages)
+        return p
+
+
 class PointCloud(GeoData):
     """
     A class for storing and preparing Point Cloud data.
@@ -611,7 +649,7 @@ class PointCloud(GeoData):
         """
         tag = ["AOI", "Foundation"][int(self.fnd)]
         self.logger.info(
-            f"Extracting DSM from {tag}-{self.type.upper()} with resolution of: {self.resolution} meters"
+            f"Extracting DSM from {tag}-{self.type.upper()} with resolution of: {self.resolution:.2f} meters"
         )
 
         # Scale matrix formatted for PDAL consumption
@@ -624,20 +662,13 @@ class PointCloud(GeoData):
 
         file_handle, tmp_file = tempfile.mkstemp(suffix=".tif")
 
-        pipe = [
-            self.file,
-            {"type": "filters.transformation", "matrix": units_transform},
-            {
-                "type": "writers.gdal",
-                "resolution": self.resolution,
-                "output_type": "max",
-                "nodata": -9999.0,
-                "filename": tmp_file,
-            },
-        ]
-
-        p = pdal.Pipeline(json.dumps(pipe))
-        p.execute()
+        pipeline = PipelineReader(self.file).get()
+        pipeline |= pdal.Filter.transformation(matrix = units_transform)
+        pipeline |= pdal.Writer.gdal(filename=tmp_file,
+                                     output_type="max",
+                                     nodata="-9999.0",
+                                     resolution=self.resolution)
+        pipeline.execute()
 
         self._read_dsm(tmp_file, force=True)
         os.close(file_handle)
@@ -649,7 +680,7 @@ class PointCloud(GeoData):
         """
         tag = ["AOI", "Foundation"][int(self.fnd)]
 
-        pipeline = pdal.Reader(self.file)
+        pipeline = PipelineReader(self.file).get()
         pipeline |= pdal.Filter.hexbin(edge_size=25, threshold=1)
         pipeline.execute()
 
