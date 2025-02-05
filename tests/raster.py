@@ -5,6 +5,7 @@ from typing import NamedTuple
 from typing import Optional
 
 from osgeo import gdal
+gdal.UseExceptions()
 
 
 class Translation(NamedTuple):

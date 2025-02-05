@@ -8,6 +8,7 @@ import codem
 import numpy as np
 import pytest
 from osgeo import gdal
+gdal.UseExceptions()
 from point_cloud import manipulate_pc
 from point_cloud import pc_aoi
 from point_cloud import Rotation
