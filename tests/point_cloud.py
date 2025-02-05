@@ -73,9 +73,9 @@ def manipulate_pc(
 
     temp_location = os.path.dirname(pc_aoi)
     output_file = tempfile.NamedTemporaryFile(
-        dir=temp_location, suffix=".laz", delete=False
+        dir=temp_location, suffix=".copc.laz", delete=False
     ).name
-    pipeline.append({"type": "writers.las", "filename": output_file, "forward": "all"})
+    pipeline.append({"type": "writers.copc", "filename": output_file, "forward": "all"})
     p = pdal.Pipeline(json.dumps(pipeline))
     p.execute()
     return output_file
@@ -85,7 +85,7 @@ def manipulate_pc(
 def pc_pipeline(tmp_location: str, pc_foundation: str, aoi_shapefile: str) -> str:
     os.makedirs(tmp_location, exist_ok=True)
     output_file = tempfile.NamedTemporaryFile(
-        dir=tmp_location, suffix=".laz", delete=False
+        dir=tmp_location, suffix=".copc.laz", delete=False
     ).name
     from codem.preprocessing.preprocess import PipelineReader
 
@@ -98,7 +98,7 @@ def pc_pipeline(tmp_location: str, pc_foundation: str, aoi_shapefile: str) -> st
     )
     pipeline |= pdal.Filter.range(limits="AOIDimension[0:0]")
 
-    pipeline |= pdal.Writer.las(filename=output_file, minor_version=4, forward="all")
+    pipeline |= pdal.Writer.copc(filename=output_file, forward="all")
     pipeline.execute()
     return output_file
 
