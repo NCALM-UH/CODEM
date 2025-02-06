@@ -8,8 +8,9 @@ import codem
 import numpy as np
 import pytest
 from osgeo import gdal
+gdal.UseExceptions()
 from point_cloud import manipulate_pc
-from point_cloud import pc_aoi
+from point_cloud import pc_pipeline
 from point_cloud import Rotation
 from point_cloud import Translation
 from raster import dem_aoi
@@ -18,19 +19,22 @@ from raster import dem_aoi
 aoi_shapefile = os.path.abspath("tests/data/aoi_shapefile/aoi.shp")
 dem_foundation = os.path.abspath("tests/data/dem.tif")
 pc_foundation = os.path.abspath("tests/data/pc.laz")
+pipeline_foundation = os.path.abspath("tests/data/pipeline.json")
 temporary_directory = os.path.abspath("tests/data/temporary")
 
 
-def make_pc_aoi(aoi_temp_directory: str = temporary_directory) -> str:
-    return pc_aoi(aoi_temp_directory, pc_foundation, aoi_shapefile)
-
+def make_pc_file(aoi_temp_directory: str = temporary_directory) -> str:
+    return pc_pipeline(aoi_temp_directory, pc_foundation, aoi_shapefile)
 
 def make_raster_aoi(aoi_temp_directory: str = temporary_directory) -> str:
     return dem_aoi(aoi_temp_directory, dem_foundation, aoi_shapefile)
 
+def make_pc_pipeline(aoi_temp_directory: str = temporary_directory) -> str:
+    return pc_pipeline(aoi_temp_directory, pipeline_foundation, aoi_shapefile)
 
-pc_aoi_file = make_pc_aoi()
+pc_aoi_file = make_pc_file()
 raster_aoi_file = make_raster_aoi()
+pipeline_file = make_pc_pipeline()
 
 pc_aoi_alterations = [
     pytest.param(pc_aoi_file, id="PC AOI Original"),
@@ -67,6 +71,7 @@ dem_aoi_alterations = [pytest.param(raster_aoi_file, id="DEM AOI Original")]
     [
         pytest.param(pc_foundation, id="PC Foundation"),
         pytest.param(dem_foundation, id="DEM Foundation"),
+        pytest.param(pipeline_foundation, id="Pipeline Foundation"),
     ],
 )
 def test_registration(foundation: str, aoi: str, tmp_path: pathlib.Path) -> None:

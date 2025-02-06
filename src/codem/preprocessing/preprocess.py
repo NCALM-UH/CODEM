@@ -29,13 +29,16 @@ import logging
 import math
 import os
 import tempfile
+import pathlib
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import codem.lib.resources as r
 import cv2
 import numpy as np
+import numpy.typing as npt
 import pdal
 import pyproj
 import rasterio.fill
@@ -85,7 +88,7 @@ class CodemParameters(TypedDict):
 
 
 class RegistrationParameters(TypedDict):
-    matrix: np.ndarray
+    matrix: npt.NDArray[np.float64]
     omega: np.float64
     phi: np.float64
     kappa: np.float64
@@ -204,7 +207,7 @@ class GeoData:
         if self.transform == rasterio.Affine.identity():
             self.logger.warning(f"{tag}-{self.type.upper()} has an identity transform.")
 
-    def _get_nodata_mask(self, dsm: np.ndarray) -> np.ndarray:
+    def _get_nodata_mask(self, dsm: npt.NDArray) -> npt.NDArray:
         """
         Generates a binary array indicating invalid data locations in the
         passed array. Invalid data are NaN and nodata values. A value of '1'
@@ -221,7 +224,7 @@ class GeoData:
             The binary mask
         """
         nan_mask = np.isnan(dsm)
-        mask: np.ndarray
+        mask: npt.NDArray
         if self.nodata is not None:
             dsm[nan_mask] = self.nodata
             mask = dsm != self.nodata
@@ -292,19 +295,21 @@ class GeoData:
             )
         rows = np.arange(self.dsm.shape[0], dtype=np.float64)
         cols = np.arange(self.dsm.shape[1], dtype=np.float64)
+        uu: npt.NDArray[np.float64]
+        vv: npt.NDArray[np.float64]
         uu, vv = np.meshgrid(cols, rows)
-        u = np.reshape(uu, -1)
-        v = np.reshape(vv, -1)
+        u: npt.NDArray[np.float64] = np.reshape(uu, -1)
+        v: npt.NDArray[np.float64] = np.reshape(vv, -1)
 
         if self.area_or_point == "Area":
             u += 0.5
             v += 0.5
 
         xy = np.asarray(self.transform * (u, v))
-        z = np.reshape(self.dsm, -1)
+        z: npt.NDArray[np.float32] = np.reshape(self.dsm, -1)
         xyz = np.vstack((xy, z)).T
 
-        mask = np.reshape(np.array(self.nodata_mask, dtype=bool), -1)
+        mask: npt.NDArray[bool] = np.reshape(np.array(self.nodata_mask, dtype=bool), -1)
         xyz = xyz[mask]
 
         self.point_cloud = xyz
@@ -593,6 +598,43 @@ class DSM(GeoData):
         )
 
 
+class PipelineReader(object):
+    def __init__(self, filename: str):
+        self.filename = pathlib.Path(filename)
+
+        if '.json' in self.filename.suffixes:
+            self.inputType = 'pipeline'
+        else:
+            self.inputType = 'readable'
+
+    def get(self) -> Union[pdal.Reader, pdal.Pipeline]:
+        if self.inputType == 'pipeline':
+            return self.readPipeline()
+        else:
+            return self.readFile()
+
+    def readFile(self) -> pdal.Reader:
+        reader = pdal.Reader(str(self.filename))
+        pipeline = reader
+        return pipeline
+
+    def readPipeline(self) -> pdal.Pipeline:
+        if self.inputType != 'pipeline':
+            raise RuntimeError("Data type is not pipeline!")
+        j = self.filename.read_bytes().decode('utf-8')
+        stages = pdal.pipeline._parse_stages(j)
+        p = pdal.Pipeline(stages)
+
+        # strip off any writers because we're making our own
+        stages = []
+        for stage in p.stages:
+            if stage.type.split('.')[0] != 'writers':
+                stages.append(stage)
+
+        p = pdal.Pipeline(stages)
+        return p
+
+
 class PointCloud(GeoData):
     """
     A class for storing and preparing Point Cloud data.
@@ -611,7 +653,7 @@ class PointCloud(GeoData):
         """
         tag = ["AOI", "Foundation"][int(self.fnd)]
         self.logger.info(
-            f"Extracting DSM from {tag}-{self.type.upper()} with resolution of: {self.resolution} meters"
+            f"Extracting DSM from {tag}-{self.type.upper()} with resolution of: {self.resolution:.2f} meters"
         )
 
         # Scale matrix formatted for PDAL consumption
@@ -624,20 +666,13 @@ class PointCloud(GeoData):
 
         file_handle, tmp_file = tempfile.mkstemp(suffix=".tif")
 
-        pipe = [
-            self.file,
-            {"type": "filters.transformation", "matrix": units_transform},
-            {
-                "type": "writers.gdal",
-                "resolution": self.resolution,
-                "output_type": "max",
-                "nodata": -9999.0,
-                "filename": tmp_file,
-            },
-        ]
-
-        p = pdal.Pipeline(json.dumps(pipe))
-        p.execute()
+        pipeline = PipelineReader(self.file).get()
+        pipeline |= pdal.Filter.transformation(matrix = units_transform)
+        pipeline |= pdal.Writer.gdal(filename=tmp_file,
+                                     output_type="max",
+                                     nodata="-9999.0",
+                                     resolution=self.resolution)
+        pipeline.execute()
 
         self._read_dsm(tmp_file, force=True)
         os.close(file_handle)
@@ -649,7 +684,7 @@ class PointCloud(GeoData):
         """
         tag = ["AOI", "Foundation"][int(self.fnd)]
 
-        pipeline = pdal.Reader(self.file)
+        pipeline = PipelineReader(self.file).get()
         pipeline |= pdal.Filter.hexbin(edge_size=25, threshold=1)
         pipeline.execute()
 

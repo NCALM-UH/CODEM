@@ -1,0 +1,20 @@
+{
+  "pipeline":
+  [
+    {
+      "filename": "./tests/data/pc.laz",
+      "type": "readers.las"
+    },
+    {
+      "type": "filters.expression",
+      "expression": "Intensity < 250"
+    },
+    {
+      "type": "writers.gdal",
+      "resolution": 1,
+      "filename":"output.tif"
+    }
+
+  ]
+}
+
