@@ -692,7 +692,7 @@ class PointCloud(GeoData):
         reader_metadata = [val for key, val in metadata.items() if "readers" in key]
         try:
             crs = CRS.from_string(reader_metadata[0]["srs"]["horizontal"])
-        except (CRSError, IndexError, KeyError):
+        except (CRSError, IndexError, KeyError, TypeError):
             crs = None
         if crs is None:
             self.logger.warning(
