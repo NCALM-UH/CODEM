@@ -689,7 +689,13 @@ class PointCloud(GeoData):
         pipeline.execute()
 
         metadata = pipeline.metadata["metadata"]
-        reader_metadata = [val for key, val in metadata.items() if "readers" in key]
+        reader_metadata = []
+        for key, val in metadata.items():
+            if key.startswith("readers"):
+                if isinstance(val, list):
+                    reader_metadata.extend(val)
+                else:
+                    reader_metadata.append(val)
         try:
             crs = CRS.from_string(reader_metadata[0]["srs"]["horizontal"])
         except (CRSError, IndexError, KeyError):
