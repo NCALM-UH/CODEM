@@ -118,7 +118,7 @@ class IcpRegistration:
         fixed = self.fixed - fixed_mean
         moving = moving - fixed_mean
 
-        fixed_tree = spatial.cKDTree(fixed)
+        fixed_tree = spatial.KDTree(fixed)
 
         cumulative_transform = np.eye(4)
         moving_transformed = moving
@@ -133,7 +133,6 @@ class IcpRegistration:
             _, idx = fixed_tree.query(
                 moving_transformed, k=1, distance_upper_bound=self.outlier_thresh
             )
-
             include_fixed = idx[idx < fixed.shape[0]]
             include_moving = idx < fixed.shape[0]
             temp_fixed = fixed[include_fixed]
@@ -142,7 +141,8 @@ class IcpRegistration:
 
             if temp_fixed.shape[0] < 7:
                 raise RuntimeError(
-                    "At least 7 points within the ICP outlier threshold are required."
+                    "At least 7 points within the ICP outlier threshold are required ("
+                    f"{temp_fixed.shape[0]} detected)."
                 )
 
             weights = self._get_weights(

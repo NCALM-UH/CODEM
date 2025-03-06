@@ -261,7 +261,7 @@ class DsmRegistration:
         if c < 0.67 or c > 1.5:
             warnings.warn(
                 (
-                    "Coarse regsistration solved scale between datasets exceeds 50%. "
+                    "Coarse registration solved scale between datasets exceeds 50%. "
                     "Registration is likely to fail"
                 ),
                 category=RuntimeWarning,

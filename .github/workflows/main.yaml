@@ -18,26 +18,21 @@ concurrency:
 jobs:
   test:
     name: test
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     defaults:
       run:
-        shell: bash -l {0}
+        shell: bash -el {0}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install apt dependencies
-        run: |
-          sudo apt-get update -y --allow-releaseinfo-change
-          sudo apt-get install --no-install-recommends -y \
-            libopengl0 \
-            libgl1 \
-            libglx-mesa0
       - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-version: latest
           environment-file: environment.yml
           auto-update-conda: false
-          python-version: "3.9"
+          python-version: "3.12"
+          conda-remove-defaults: true
+          channels: conda-forge
       - name: "Install Test Framework"
         run: pip install pytest
       - name: "Install Codem"
@@ -88,6 +83,8 @@ jobs:
           environment-file: environment.yml
           auto-update-conda: false
           python-version: "3.12"
+          conda-remove-defaults: true
+          channels: conda-forge
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
