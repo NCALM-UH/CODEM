@@ -1,31 +1,38 @@
 cff-version: 1.2.0
 message: Please cite this software using these metadata or in the CITATION file.
 type: software
-title: CODEM
-abstract: CODEM is a testbed application for registering a 3D model of an area
+doi: 10.5281/zenodo.18367416
+title: "CODEM"
+abstract: "CODEM is a testbed application for registering a 3D model of an area
 of interest (AOI) to a larger 3D Foundation data source. Point cloud, mesh,
-and raster digital surface model (DSM) data types are supported
-url: https://github.com/
-repository-code: https://github.com/NCALM-UH/codem
+and raster digital surface model (DSM) data types are supported."
+url: "https://github.com/NCALM-UH/CODEM"
+repository-code: "https://github.com/NCALM-UH/CODEM"
 license: Apache-2.0
 authors:
-- given-names: Preston
-  family-names: Hartzell
-  affiliation: University of Houston
-  orcid: https://orcid.org/0000-0002-8293-3706
-- given-names: Craig
-  family-names: Glennie
-  affiliation: University of Houston
-  orcid: https://orcid.org/0000-0003-1570-0889
-- given-names: Brad
-  family-names: Chambers
-  affiliation: GCS Geospatial
-  orcid: https://orcid.org/0000-0002-7686-9357
-- given-names: Howard
-  family-names: Butler
-  affiliation: Hobu Inc.
-  orcid: https://orcid.org/0000-0002-5340-1380
-- given-name: Ognyan
-  family-names: Moore
-  affiliation: Hobu Inc.
-  orcid: https://orcid.org/0000-0001-9533-4633
+  - given-names: Preston
+    family-names: Hartzell
+    affiliation: University of Houston
+    orcid: https://orcid.org/0000-0002-8293-3706
+  - given-names: Craig
+    family-names: Glennie
+    affiliation: University of Houston
+    orcid: https://orcid.org/0000-0003-1570-0889
+  - given-names: Brad
+    family-names: Chambers
+    affiliation: GCS Geospatial
+    orcid: https://orcid.org/0000-0002-7686-9357
+  - given-names: Howard
+    family-names: Butler
+    affiliation: Hobu Inc.
+    orcid: https://orcid.org/0000-0002-5340-1380
+  - given-name: Ognyan
+    family-names: Moore
+    affiliation: Hobu Inc.
+    orcid: https://orcid.org/0000-0001-9533-4633
+
+keywords:
+  - PDAL
+  - geospatial
+  - registration
+  - GDAL
