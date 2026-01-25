@@ -26,10 +26,14 @@ authors:
     family-names: Butler
     affiliation: Hobu Inc.
     orcid: https://orcid.org/0000-0002-5340-1380
-  - given-name: Ognyan
+  - given-names: Ognyan
     family-names: Moore
     affiliation: Hobu Inc.
     orcid: https://orcid.org/0000-0001-9533-4633
+  - given-names: Jesse
+    family-names: Shanahan
+  - given-names: Bahirah
+    family-names: Adewunmi
 
 keywords:
   - PDAL
