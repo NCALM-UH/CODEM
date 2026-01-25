@@ -1,5 +1,7 @@
 # CODEM: Multi-Modal Digital Elevation Model Registration
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18367417.svg)](https://doi.org/10.5281/zenodo.18367417)
+
 ![Registered Mesh](./docs/img/reg_mesh.png)
 
 ## Overview
@@ -16,6 +18,7 @@
 2. Coarse registration via matching of features extracted from the DSMs.
 3. Fine registration via an iterative closest point (ICP) algorithm.
 4. Application of the solved registration transformation to the AOI data in its original type and format.
+
 
 ## Installing CODEM
 
